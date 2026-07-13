@@ -121,10 +121,5 @@ TASKS: 5
 - [ ] Add basic tests for individual nodes
 - [ ] Add configurable model selection
 
-## License
-
-_Add your preferred license here (e.g., MIT)._
-
----
 
 **This is version 0 — an early prototype focused on validating the core agent pipeline. Expect breaking changes as the project evolves.**
