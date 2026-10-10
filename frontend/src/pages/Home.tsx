@@ -1,94 +1,151 @@
-import { Sparkles, Zap, BookOpen, Globe2 } from 'lucide-react'
 import BlogForm from '@/components/BlogForm'
-
-const FEATURES = [
-  { icon: Globe2, label: 'Live web research', desc: 'Pulls fresh sources via Tavily' },
-  { icon: Zap, label: 'Parallel writing', desc: 'All sections drafted simultaneously' },
-  { icon: BookOpen, label: 'Cited sources', desc: 'Every claim backed by evidence' },
-]
 
 export default function Home() {
   return (
-    <div className="min-h-screen bg-[#09090b] relative overflow-hidden">
-      {/* Background ambient glow */}
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-0"
+    <div
+      className="min-h-[100dvh] flex flex-col"
+      style={{ background: 'var(--color-canvas)' }}
+    >
+      {/* Top bar — full width with inner max-width alignment */}
+      <header
+        className="sticky top-0 z-40 flex items-center h-14 px-6"
         style={{
-          background:
-            'radial-gradient(ellipse 80% 50% at 50% -10%, rgba(124,58,237,0.18) 0%, transparent 60%), ' +
-            'radial-gradient(ellipse 60% 40% at 80% 80%, rgba(6,182,212,0.08) 0%, transparent 60%)',
+          background: 'var(--color-overlay)',
+          borderBottom: '1px solid var(--color-border)',
+          backdropFilter: 'blur(12px)',
+          WebkitBackdropFilter: 'blur(12px)',
         }}
-      />
-
-      {/* Subtle grid */}
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-0 opacity-[0.025]"
-        style={{
-          backgroundImage:
-            'linear-gradient(rgba(255,255,255,0.3) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.3) 1px, transparent 1px)',
-          backgroundSize: '40px 40px',
-        }}
-      />
-
-      <div className="relative z-10 flex flex-col items-center px-4 py-16 sm:py-24">
-        {/* Hero */}
-        <div className="text-center max-w-2xl mb-14">
-          {/* Pill badge */}
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-purple-500/30 bg-purple-500/10 text-purple-300 text-xs font-medium mb-6">
-            <Sparkles className="h-3.5 w-3.5" />
-            Powered by LangGraph + Gemini
-          </div>
-
-          <h1
-            className="text-5xl sm:text-6xl font-bold tracking-tight mb-5"
+      >
+        <div className="w-full max-w-6xl mx-auto flex items-center gap-2">
+          <span
+            className="text-sm font-semibold"
+            style={{ color: 'var(--color-ink)', letterSpacing: '-0.02em' }}
+          >
+            odis
+          </span>
+          <span
+            className="text-xs px-1.5 py-0.5"
             style={{
-              background: 'linear-gradient(135deg, #f8fafc 0%, #c4b5fd 50%, #67e8f9 100%)',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
+              background: 'var(--color-accent-muted)',
+              color: 'var(--color-accent)',
+              fontSize: '0.6875rem',
+              fontWeight: 600,
+              borderRadius: '3px',
             }}
           >
-            Blog Writing
-            <br />
-            Agent
-          </h1>
+            BETA
+          </span>
+        </div>
+      </header>
 
-          <p className="text-slate-400 text-lg leading-relaxed max-w-xl mx-auto">
-            Enter a topic and get a fully researched, structured blog post — complete with
-            live sources, a custom outline, and parallel section drafting.
-          </p>
+      {/* Main — split layout at lg, stacked on mobile */}
+      <main className="flex-1 flex items-start justify-center px-6 py-12 sm:py-16">
+        <div className="w-full max-w-6xl">
+          {/* Grid: 5/7 left copy, 4/7 right form on desktop */}
+          <div className="grid grid-cols-1 lg:grid-cols-[1fr_440px] gap-12 lg:gap-16 items-start">
 
-          {/* Feature pills */}
-          <div className="flex flex-wrap justify-center gap-3 mt-8">
-            {FEATURES.map(f => (
-              <div
-                key={f.label}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl border border-white/8 bg-white/[0.03] text-sm"
+            {/* ── Left: intro copy ── */}
+            <div className="pt-2 lg:pt-4">
+              <h1
+                className="text-[2.375rem] sm:text-[3rem] lg:text-[3.25rem] font-bold leading-[1.08] mb-5"
+                style={{ color: 'var(--color-ink)', letterSpacing: '-0.038em' }}
               >
-                <f.icon className="h-4 w-4 text-purple-400" />
-                <span className="text-slate-300 font-medium">{f.label}</span>
-                <span className="text-slate-500 hidden sm:inline">— {f.desc}</span>
+                Write research-backed articles
+                <span
+                  style={{
+                    display: 'block',
+                    color: 'var(--color-ink-3)',
+                    fontWeight: 400,
+                    marginTop: '0.1em',
+                  }}
+                >
+                  in minutes.
+                </span>
+              </h1>
+
+              <p
+                className="text-base leading-relaxed mb-8 max-w-[46ch]"
+                style={{ color: 'var(--color-ink-3)', fontSize: '1.0625rem' }}
+              >
+                Provide a topic and your preferences. The agent researches the web,
+                builds an outline, drafts every section in parallel, and delivers
+                a cited, publication-ready article.
+              </p>
+
+              {/* Capability chips — restrained geometry */}
+              <div className="flex flex-wrap gap-2 mb-10 lg:mb-0">
+                {[
+                  { label: 'Live web research', detail: 'Tavily' },
+                  { label: 'Parallel section drafting', detail: 'LangGraph' },
+                  { label: 'Cited sources', detail: 'Every claim' },
+                ].map(({ label, detail }) => (
+                  <span
+                    key={label}
+                    className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1"
+                    style={{
+                      background: 'var(--color-surface)',
+                      border: '1px solid var(--color-border)',
+                      color: 'var(--color-ink-3)',
+                      borderRadius: '4px',
+                    }}
+                  >
+                    {label}
+                    <span style={{ color: 'var(--color-ink-4)', fontWeight: 400 }}>· {detail}</span>
+                  </span>
+                ))}
               </div>
-            ))}
+
+              {/* Footer note — visible only on desktop left col */}
+              <p
+                className="text-xs hidden lg:block"
+                style={{ color: 'var(--color-ink-4)', marginTop: '2.5rem' }}
+              >
+                Powered by LangGraph + Gemini · Tavily web search
+              </p>
+            </div>
+
+            {/* ── Right: form card ── */}
+            <div
+              className="w-full"
+              style={{
+                background: 'var(--color-elevated)',
+                border: '1px solid var(--color-border)',
+                borderRadius: '6px',
+                boxShadow: '0 1px 3px rgba(26,25,22,0.06), 0 8px 24px rgba(26,25,22,0.05)',
+              }}
+            >
+              {/* Form header */}
+              <div
+                className="px-6 py-4"
+                style={{ borderBottom: '1px solid var(--color-border)' }}
+              >
+                <p
+                  className="text-xs font-semibold uppercase"
+                  style={{
+                    color: 'var(--color-ink-4)',
+                    letterSpacing: '0.09em',
+                  }}
+                >
+                  Article Settings
+                </p>
+              </div>
+              {/* Form body */}
+              <div className="px-6 py-6">
+                <BlogForm />
+              </div>
+            </div>
+
           </div>
         </div>
+      </main>
 
-        {/* Form card */}
-        <div
-          className="w-full max-w-xl rounded-2xl border border-white/[0.08] p-8"
-          style={{
-            background:
-              'linear-gradient(135deg, rgba(26,26,40,0.9) 0%, rgba(17,17,24,0.95) 100%)',
-            backdropFilter: 'blur(20px)',
-            boxShadow:
-              '0 0 0 1px rgba(124,58,237,0.1), 0 25px 50px rgba(0,0,0,0.5), 0 0 80px rgba(124,58,237,0.06)',
-          }}
-        >
-          <h2 className="text-lg font-semibold text-white mb-6">Configure your blog</h2>
-          <BlogForm />
-        </div>
-      </div>
+      {/* Mobile footer */}
+      <p
+        className="text-xs text-center pb-6 lg:hidden"
+        style={{ color: 'var(--color-ink-4)' }}
+      >
+        Powered by LangGraph + Gemini · Tavily web search
+      </p>
     </div>
   )
 }

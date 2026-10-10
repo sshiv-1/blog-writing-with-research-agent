@@ -1,17 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Sparkles, Globe, BookOpen, Loader2 } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Textarea } from '@/components/ui/textarea'
-import { Label } from '@/components/ui/label'
-import { Switch } from '@/components/ui/switch'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+import { Globe, BookOpen, Loader2, PenLine } from 'lucide-react'
 import { generateBlog, type GenerateRequest } from '@/api/client'
 
 const TONES = ['professional', 'casual', 'conversational', 'technical', 'academic', 'friendly']
@@ -27,6 +16,58 @@ const STYLES = [
   { value: 'comparison', label: 'Comparison' },
   { value: 'news_roundup', label: 'News Roundup' },
 ]
+
+/* Shared radius — restrained, not pill-heavy */
+const R = '4px'
+
+function FieldLabel({ children, htmlFor }: { children: React.ReactNode; htmlFor?: string }) {
+  return (
+    <label
+      htmlFor={htmlFor}
+      className="block text-sm font-medium mb-1.5"
+      style={{ color: 'var(--color-ink-2)' }}
+    >
+      {children}
+    </label>
+  )
+}
+
+function SelectField({
+  value,
+  onChange,
+  options,
+  id,
+}: {
+  value: string
+  onChange: (v: string) => void
+  options: { value: string; label: string }[]
+  id?: string
+}) {
+  return (
+    <select
+      id={id}
+      value={value}
+      onChange={e => onChange(e.target.value)}
+      className="w-full h-10 px-3 text-sm appearance-none cursor-pointer transition-colors"
+      style={{
+        borderRadius: R,
+        background: 'var(--color-canvas)',
+        border: '1px solid var(--color-border)',
+        color: 'var(--color-ink)',
+        backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%239c9890' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`,
+        backgroundRepeat: 'no-repeat',
+        backgroundPosition: 'right 10px center',
+        paddingRight: '2rem',
+      }}
+    >
+      {options.map(o => (
+        <option key={o.value} value={o.value}>
+          {o.label}
+        </option>
+      ))}
+    </select>
+  )
+}
 
 export default function BlogForm() {
   const navigate = useNavigate()
@@ -57,136 +98,163 @@ export default function BlogForm() {
     }
   }
 
+  const toneOptions = TONES.map(t => ({ value: t, label: t.charAt(0).toUpperCase() + t.slice(1) }))
+
   return (
-    <form onSubmit={handleSubmit} className="w-full space-y-6">
+    <form onSubmit={handleSubmit} className="w-full space-y-5">
       {/* Topic */}
-      <div className="space-y-2">
-        <Label htmlFor="topic" className="text-slate-300 font-medium">
-          Topic <span className="text-purple-400">*</span>
-        </Label>
-        <Textarea
+      <div>
+        <FieldLabel htmlFor="topic">
+          Topic <span style={{ color: 'var(--color-accent)' }}>*</span>
+        </FieldLabel>
+        <textarea
           id="topic"
           placeholder="e.g. How LangGraph enables stateful multi-agent workflows in production"
-          className="min-h-[100px] resize-none bg-white/5 border-white/10 text-white placeholder:text-slate-500 focus-visible:ring-purple-500 focus-visible:border-purple-500/50 text-base rounded-xl"
+          rows={3}
+          className="w-full px-3 py-2.5 text-sm resize-none transition-colors"
+          style={{
+            borderRadius: R,
+            background: 'var(--color-canvas)',
+            border: '1px solid var(--color-border)',
+            color: 'var(--color-ink)',
+          }}
           value={form.topic}
           onChange={e => setForm(f => ({ ...f, topic: e.target.value }))}
           required
         />
       </div>
 
-      {/* Row: Tone + Style */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label className="text-slate-300 font-medium">Tone</Label>
-          <Select value={form.tone} onValueChange={v => setForm(f => ({ ...f, tone: v }))}>
-            <SelectTrigger className="bg-white/5 border-white/10 text-white focus:ring-purple-500 rounded-xl">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent className="bg-[#1a1a28] border-white/10 text-white">
-              {TONES.map(t => (
-                <SelectItem key={t} value={t} className="capitalize focus:bg-purple-500/20">
-                  {t.charAt(0).toUpperCase() + t.slice(1)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+      {/* Tone + Style */}
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <FieldLabel>Tone</FieldLabel>
+          <SelectField
+            value={form.tone}
+            onChange={v => setForm(f => ({ ...f, tone: v }))}
+            options={toneOptions}
+          />
         </div>
-
-        <div className="space-y-2">
-          <Label className="text-slate-300 font-medium">Style</Label>
-          <Select value={form.style} onValueChange={v => setForm(f => ({ ...f, style: v as GenerateRequest['style'] }))}>
-            <SelectTrigger className="bg-white/5 border-white/10 text-white focus:ring-purple-500 rounded-xl">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent className="bg-[#1a1a28] border-white/10 text-white">
-              {STYLES.map(s => (
-                <SelectItem key={s.value} value={s.value} className="focus:bg-purple-500/20">
-                  {s.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        <div>
+          <FieldLabel>Style</FieldLabel>
+          <SelectField
+            value={form.style}
+            onChange={v => setForm(f => ({ ...f, style: v as GenerateRequest['style'] }))}
+            options={STYLES}
+          />
         </div>
       </div>
 
-      {/* Row: Audience + Length */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label htmlFor="audience" className="text-slate-300 font-medium">Audience</Label>
+      {/* Audience + Length */}
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <FieldLabel htmlFor="audience">Audience</FieldLabel>
           <input
             id="audience"
             type="text"
-            placeholder="e.g. developers, product managers..."
-            className="w-full h-10 px-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500/50 text-sm"
+            placeholder="e.g. developers"
+            className="w-full h-10 px-3 text-sm transition-colors"
+            style={{
+              borderRadius: R,
+              background: 'var(--color-canvas)',
+              border: '1px solid var(--color-border)',
+              color: 'var(--color-ink)',
+            }}
             value={form.audience}
             onChange={e => setForm(f => ({ ...f, audience: e.target.value }))}
           />
         </div>
-
-        <div className="space-y-2">
-          <Label className="text-slate-300 font-medium">Length</Label>
-          <Select value={form.length} onValueChange={v => setForm(f => ({ ...f, length: v as GenerateRequest['length'] }))}>
-            <SelectTrigger className="bg-white/5 border-white/10 text-white focus:ring-purple-500 rounded-xl">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent className="bg-[#1a1a28] border-white/10 text-white">
-              {LENGTHS.map(l => (
-                <SelectItem key={l.value} value={l.value} className="focus:bg-purple-500/20">
-                  {l.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        <div>
+          <FieldLabel>Length</FieldLabel>
+          <SelectField
+            value={form.length}
+            onChange={v => setForm(f => ({ ...f, length: v as GenerateRequest['length'] }))}
+            options={LENGTHS}
+          />
         </div>
       </div>
 
-      {/* Web research toggle */}
-      <div className="flex items-center justify-between p-4 rounded-xl bg-white/5 border border-white/10">
-        <div className="flex items-center gap-3">
+      {/* Web research toggle row */}
+      <div
+        className="flex items-center justify-between px-3.5 py-3"
+        style={{
+          borderRadius: R,
+          background: 'var(--color-surface)',
+          border: '1px solid var(--color-border)',
+        }}
+      >
+        <div className="flex items-center gap-2.5">
           {form.use_web
-            ? <Globe className="h-5 w-5 text-cyan-400" />
-            : <BookOpen className="h-5 w-5 text-slate-400" />
+            ? <Globe className="h-4 w-4" style={{ color: 'var(--color-accent)' }} />
+            : <BookOpen className="h-4 w-4" style={{ color: 'var(--color-ink-4)' }} />
           }
           <div>
-            <p className="text-slate-200 font-medium text-sm">Web Research</p>
-            <p className="text-slate-500 text-xs">
+            <p className="text-sm font-medium" style={{ color: 'var(--color-ink)' }}>Web Research</p>
+            <p className="text-xs" style={{ color: 'var(--color-ink-4)' }}>
               {form.use_web
-                ? 'Searches the web for up-to-date sources and citations'
-                : 'Uses model knowledge only (evergreen topics)'}
+                ? 'Searches the web for up-to-date sources'
+                : 'Uses model knowledge only'}
             </p>
           </div>
         </div>
-        <Switch
-          id="use_web"
-          checked={form.use_web}
-          onCheckedChange={v => setForm(f => ({ ...f, use_web: v }))}
-          className="data-[state=checked]:bg-purple-500"
-        />
+        {/*
+          Toggle: track stays pill-shaped (rounded-full) because the sliding
+          thumb's circular shape depends on it — this is a functional, not
+          decorative, use of the pill shape.
+        */}
+        <button
+          type="button"
+          role="switch"
+          aria-checked={form.use_web}
+          onClick={() => setForm(f => ({ ...f, use_web: !f.use_web }))}
+          className="relative inline-flex h-5 w-9 flex-shrink-0 items-center rounded-full transition-colors"
+          style={{
+            background: form.use_web ? 'var(--color-accent)' : 'var(--color-border-strong)',
+          }}
+        >
+          <span
+            className="inline-block h-3.5 w-3.5 rounded-full bg-white shadow-sm transition-transform"
+            style={{ transform: form.use_web ? 'translateX(18px)' : 'translateX(3px)' }}
+          />
+        </button>
       </div>
 
       {error && (
-        <p className="text-red-400 text-sm bg-red-500/10 border border-red-500/20 rounded-lg px-4 py-3">
+        <p
+          className="text-sm px-3.5 py-3"
+          style={{
+            borderRadius: R,
+            color: 'var(--color-error)',
+            background: 'var(--color-error-bg)',
+            border: '1px solid rgba(192,57,43,0.2)',
+          }}
+        >
           {error}
         </p>
       )}
 
-      <Button
+      <button
         type="submit"
         disabled={isSubmitting || !form.topic.trim()}
-        className="w-full h-12 text-base font-semibold rounded-xl bg-gradient-to-r from-purple-600 to-violet-600 hover:from-purple-500 hover:to-violet-500 text-white border-0 shadow-lg shadow-purple-500/25 transition-all duration-200 hover:shadow-purple-500/40 hover:scale-[1.01] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+        className="w-full h-11 flex items-center justify-center gap-2 text-sm font-semibold transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+        style={{
+          borderRadius: R,
+          background: isSubmitting || !form.topic.trim() ? 'var(--color-border-strong)' : 'var(--color-ink)',
+          color: 'var(--color-ink-inv)',
+          border: 'none',
+        }}
       >
         {isSubmitting ? (
           <>
-            <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+            <Loader2 className="h-4 w-4 animate-spin" />
             Starting…
           </>
         ) : (
           <>
-            <Sparkles className="mr-2 h-5 w-5" />
-            Generate Blog
+            <PenLine className="h-4 w-4" />
+            Generate Article
           </>
         )}
-      </Button>
+      </button>
     </form>
   )
 }

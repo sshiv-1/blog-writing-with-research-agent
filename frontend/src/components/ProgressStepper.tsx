@@ -1,15 +1,14 @@
 import { CheckCircle2, Circle, Loader2 } from 'lucide-react'
-import { Progress } from '@/components/ui/progress'
 import type { JobStatus } from '@/api/client'
 
 const STAGES = [
   { key: 'queued',      label: 'Queued',              desc: 'Waiting to start…' },
-  { key: 'routing',     label: 'Analysing Topic',     desc: 'Deciding research strategy…' },
-  { key: 'researching', label: 'Researching Sources', desc: 'Searching the web for evidence…' },
-  { key: 'planning',    label: 'Building Outline',    desc: 'Structuring sections and goals…' },
-  { key: 'writing',     label: 'Drafting Sections',   desc: 'Writing all sections in parallel…' },
-  { key: 'finalizing',  label: 'Polishing Article',   desc: 'Assembling the final post…' },
-  { key: 'done',        label: 'Complete',            desc: 'Your blog is ready!' },
+  { key: 'routing',     label: 'Analysing topic',     desc: 'Deciding research strategy…' },
+  { key: 'researching', label: 'Researching sources', desc: 'Searching the web for evidence…' },
+  { key: 'planning',    label: 'Building outline',    desc: 'Structuring sections and goals…' },
+  { key: 'writing',     label: 'Drafting sections',   desc: 'Writing all sections in parallel…' },
+  { key: 'finalizing',  label: 'Polishing article',   desc: 'Assembling the final post…' },
+  { key: 'done',        label: 'Complete',            desc: 'Your article is ready.' },
 ]
 
 interface Props {
@@ -23,32 +22,37 @@ export default function ProgressStepper({ jobStatus }: Props) {
   const currentIndex = STAGES.findIndex(s => s.key === currentStage)
 
   return (
-    <div className="w-full space-y-8">
+    <div className="w-full space-y-6">
       {/* Progress bar */}
-      <div className="space-y-3">
-        <div className="flex justify-between items-center text-sm">
-          <span className="text-slate-400">Progress</span>
-          <span className="text-purple-400 font-semibold tabular-nums">{progress}%</span>
+      <div className="space-y-2">
+        <div className="flex justify-between items-center text-xs" style={{ color: 'var(--color-ink-4)' }}>
+          <span>Progress</span>
+          <span
+            className="font-semibold tabular-nums"
+            style={{ color: 'var(--color-accent)', fontVariantNumeric: 'tabular-nums' }}
+          >
+            {progress}%
+          </span>
         </div>
-        <div className="relative">
-          <Progress
-            value={progress}
-            className="h-2 bg-white/10"
-          />
-          {/* Glow overlay on progress */}
+        {/* Track */}
+        <div
+          className="relative h-1 overflow-hidden"
+          style={{ background: 'var(--color-border)', borderRadius: '1px' }}
+        >
           <div
-            className="absolute top-0 left-0 h-2 rounded-full transition-all duration-700 ease-out pointer-events-none"
+            className="absolute inset-y-0 left-0 transition-all duration-700"
             style={{
               width: `${progress}%`,
-              background: 'linear-gradient(90deg, #7c3aed, #06b6d4)',
-              boxShadow: '0 0 12px rgba(124, 58, 237, 0.6)',
+              background: 'var(--color-accent)',
+              borderRadius: '1px',
+              transitionTimingFunction: 'var(--ease-out-expo)',
             }}
           />
         </div>
       </div>
 
       {/* Stage steps */}
-      <div className="space-y-3">
+      <div className="space-y-0.5">
         {STAGES.map((stage, idx) => {
           const isDone = idx < currentIndex || currentStage === 'done'
           const isCurrent = stage.key === currentStage && currentStage !== 'done'
@@ -56,35 +60,56 @@ export default function ProgressStepper({ jobStatus }: Props) {
           return (
             <div
               key={stage.key}
-              className={`flex items-center gap-4 p-3 rounded-xl transition-all duration-300 ${
-                isCurrent
-                  ? 'bg-purple-500/10 border border-purple-500/30'
-                  : isDone
-                  ? 'bg-white/[0.02]'
-                  : 'opacity-40'
-              }`}
+              className="flex items-center gap-3 px-3 py-2.5 transition-colors"
+              style={{
+                borderRadius: '4px',
+                background: isCurrent ? 'var(--color-accent-muted)' : 'transparent',
+                opacity: !isDone && !isCurrent ? 0.38 : 1,
+              }}
             >
               {/* Icon */}
-              <div className="flex-shrink-0 w-7 h-7 flex items-center justify-center">
+              <div className="flex-shrink-0 w-5 h-5 flex items-center justify-center">
                 {isDone ? (
-                  <CheckCircle2 className="w-6 h-6 text-emerald-400" />
+                  <CheckCircle2
+                    className="w-4.5 h-4.5"
+                    style={{ color: 'var(--color-success)' }}
+                    strokeWidth={2}
+                  />
                 ) : isCurrent ? (
-                  <Loader2 className="w-6 h-6 text-purple-400 animate-spin" />
+                  <Loader2
+                    className="w-4.5 h-4.5 animate-spin"
+                    style={{ color: 'var(--color-accent)' }}
+                    strokeWidth={2}
+                  />
                 ) : (
-                  <Circle className="w-6 h-6 text-slate-600" />
+                  <Circle
+                    className="w-4.5 h-4.5"
+                    style={{ color: 'var(--color-border-strong)' }}
+                    strokeWidth={1.5}
+                  />
                 )}
               </div>
 
               {/* Text */}
               <div className="flex-1 min-w-0">
-                <p className={`text-sm font-medium ${
-                  isDone ? 'text-slate-400 line-through decoration-slate-600' :
-                  isCurrent ? 'text-white' : 'text-slate-500'
-                }`}>
+                <p
+                  className="text-sm font-medium"
+                  style={{
+                    color: isDone
+                      ? 'var(--color-ink-4)'
+                      : isCurrent
+                      ? 'var(--color-ink)'
+                      : 'var(--color-ink-4)',
+                    textDecoration: isDone ? 'line-through' : 'none',
+                  }}
+                >
                   {stage.label}
                 </p>
                 {isCurrent && (
-                  <p className="text-xs text-purple-300/70 mt-0.5 animate-pulse">
+                  <p
+                    className="text-xs mt-0.5"
+                    style={{ color: 'var(--color-accent)' }}
+                  >
                     {stage.desc}
                   </p>
                 )}
