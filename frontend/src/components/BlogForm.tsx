@@ -91,7 +91,7 @@ export default function BlogForm() {
     setError(null)
     try {
       const { job_id } = await generateBlog(form)
-      navigate(`/result/${job_id}`)
+      navigate(`/result/${job_id}`, { state: { audience: form.audience } })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to connect to the server.')
       setIsSubmitting(false)

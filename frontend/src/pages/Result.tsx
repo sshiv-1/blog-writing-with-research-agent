@@ -1,21 +1,26 @@
-import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, AlertCircle, RefreshCw, BookOpen, AlignLeft } from 'lucide-react'
+import { useState } from 'react'
+import { useParams, useNavigate, useLocation } from 'react-router-dom'
+import { ArrowLeft, AlertCircle, RefreshCw, BookOpen, AlignLeft, Presentation } from 'lucide-react'
 import { useJobStatus } from '@/hooks/useJobStatus'
+import { useSlideJob } from '@/hooks/useSlideJob'
 import ProgressStepper from '@/components/ProgressStepper'
 import OutputEditor from '@/components/OutputEditor'
 import SourceList from '@/components/SourceList'
+import SlidesPanel from '@/components/SlidesPanel'
 
-type ResultTab = 'article' | 'sources'
-
-import { useState } from 'react'
+type ResultTab = 'article' | 'sources' | 'slides'
 
 export default function Result() {
   const { jobId } = useParams<{ jobId: string }>()
   const navigate = useNavigate()
-  const { status, result, isLoading, error } = useJobStatus(jobId ?? null)
-  const [activeTab, setActiveTab] = useState<ResultTab>('article')
+  const location = useLocation()
+  const audience = (location.state as { audience?: string } | undefined)?.audience
 
+  const { status, result, isLoading, error } = useJobStatus(jobId ?? null)
   const isDone = status?.status === 'done' && result !== null
+
+  const slideJob = useSlideJob(jobId ?? null)
+  const [activeTab, setActiveTab] = useState<ResultTab>('article')
 
   return (
     <div
@@ -54,7 +59,7 @@ export default function Result() {
               className="text-sm font-semibold tracking-tight hidden sm:block"
               style={{ color: 'var(--color-ink)', letterSpacing: '-0.02em' }}
             >
-              odis
+              SAGE
             </span>
           </div>
 
@@ -198,6 +203,7 @@ export default function Result() {
               {([
                 { id: 'article' as ResultTab, icon: AlignLeft, label: 'Article' },
                 { id: 'sources' as ResultTab, icon: BookOpen, label: `Sources (${result.sources.length})` },
+                { id: 'slides' as ResultTab, icon: Presentation, label: 'Slides' },
               ] as const).map(({ id, icon: Icon, label }) => (
                 <button
                   key={id}
@@ -217,19 +223,41 @@ export default function Result() {
                 >
                   <Icon className="h-4 w-4" strokeWidth={1.75} />
                   {label}
+                  {id === 'slides' && slideJob.status?.status === 'done' && (
+                    <span
+                      className="h-1.5 w-1.5 rounded-full"
+                      style={{ background: 'var(--color-success)' }}
+                      aria-hidden
+                    />
+                  )}
                 </button>
               ))}
             </div>
 
             {/* Tab content */}
-            {activeTab === 'article' && (
+            <div style={{ display: activeTab === 'article' ? 'block' : 'none' }}>
               <OutputEditor result={result} />
-            )}
-            {activeTab === 'sources' && (
-              <div className="max-w-2xl">
-                <SourceList sources={result.sources} />
-              </div>
-            )}
+            </div>
+
+            <div style={{ display: activeTab === 'sources' ? 'block' : 'none' }} className="max-w-2xl">
+              <SourceList sources={result.sources} />
+            </div>
+
+            <div style={{ display: activeTab === 'slides' ? 'block' : 'none' }}>
+              <SlidesPanel
+                jobId={jobId ?? ''}
+                blogIsDone={isDone}
+                audience={audience}
+                status={slideJob.status}
+                isLoading={slideJob.isLoading}
+                error={slideJob.error}
+                pdfBlobUrl={slideJob.pdfBlobUrl}
+                isPdfLoading={slideJob.isPdfLoading}
+                pdfError={slideJob.pdfError}
+                start={slideJob.start}
+                retryPdf={slideJob.retryPdf}
+              />
+            </div>
           </div>
         )}
       </main>

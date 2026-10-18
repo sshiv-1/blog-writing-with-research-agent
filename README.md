@@ -1,12 +1,12 @@
-# GenAI Agentic AI — Blog Generation Agent
+# SAGE — AI Research & Presentation Studio
 
-> **Status: Version 1 (v1)** — A full-stack AI-powered blog generation platform built with **LangGraph**, **FastAPI**, and **React**. The project exposes a REST API, provides a modern web interface, and generates high-quality blogs using a multi-agent workflow.
+> **Status: Version 1 (v1)** — A full-stack AI-powered research, writing, and presentation platform built with **LangGraph**, **FastAPI**, and **React**. The project exposes a REST API, provides a modern web interface, generates high-quality articles using a multi-agent workflow, and compiles lecture-grade slide decks (Beamer PDF + editable PPTX).
 
 ---
 
 # Overview
 
-GenAI Agentic AI is a **multi-agent blog generation system** that automatically researches a topic, creates a structured writing plan, generates each section in parallel, and assembles a polished Markdown blog.
+SAGE is a **multi-agent research, writing, and presentation system** that automatically researches a topic, creates a structured writing plan, generates each section in parallel, assembles a polished Markdown article, and compiles lecture-grade presentation slides.
 
 Unlike traditional single-prompt generators, this project uses **LangGraph** to orchestrate specialized AI agents, each responsible for a distinct stage of the writing process.
 
@@ -48,7 +48,7 @@ The application consists of three layers:
                LangGraph Agent Core
         ┌────────────┬─────────────┐
         │            │             │
-     Gemini LLM   Tavily API   Job Manager
+       Groq LLM    Tavily API   Job Manager
 ```
 
 ---
@@ -126,7 +126,7 @@ Collects all completed sections and assembles the final article in the correct o
 
 * LangGraph
 * LangChain
-* Google Gemini
+* Groq (Llama 3.3 70B & gpt-oss-120b)
 * Tavily Search
 
 ## Backend
@@ -313,7 +313,8 @@ npm install
 Create a `.env` file inside the `backend` directory.
 
 ```env
-GEMINI_API_KEY=your_key_here
+GROQ_API_KEY=your_key_here
+GROQ_PPTX_API_KEY=your_key_here
 TAVILY_API_KEY=your_key_here
 ```
 
@@ -424,4 +425,5 @@ This project is intended for educational and portfolio purposes.
 
 ---
 
-Built with ❤️ using **LangGraph**, **FastAPI**, **React**, **Google Gemini**, and **Tavily Search**.
+Built with ❤️ using **LangGraph**, **FastAPI**, **React**, **Groq**, and **Tavily Search**.
+Slide design principles (page job, layout rhythm, plan/do/check/act repair) adapted from ppt-master by Hugo He (MIT).
