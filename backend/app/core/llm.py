@@ -43,14 +43,15 @@ PROVIDER_REGISTRY: dict[str, dict[str, Any]] = {
             "llama-3.3-70b-versatile",
         ],
         "profile": {
-            "planner_input_token_cap": 6000,
+            "planner_input_token_cap": 4500,
             "worker_concurrency": 3,
             "max_output_tokens_blog_section": 4096,
-            "max_output_tokens_slides": 8192,
+            "max_output_tokens_slides": 4500,
         },
         "options": {
             "temperature_blog": 0.4,
             "temperature_slides": 0.2,
+            "reasoning_effort": "low",
         },
     },
     "openai": {
@@ -313,8 +314,11 @@ def get_llm(
         if temp is not None:
             kwargs["temperature"] = temp
 
+        if "gpt-oss" in model.lower() or options.get("reasoning_effort"):
+            kwargs["reasoning_effort"] = options.get("reasoning_effort", "low")
+
         if role == "slides":
-            kwargs["max_tokens"] = profile.get("max_output_tokens_slides", 8192)
+            kwargs["max_tokens"] = profile.get("max_output_tokens_slides", 4500)
         elif role == "blog":
             kwargs["max_tokens"] = profile.get("max_output_tokens_blog_section", 4096)
         elif role == "test":

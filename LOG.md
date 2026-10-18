@@ -428,3 +428,42 @@
   - Warmup Python one-liner test: **PASS** (compiled Beamer PDF offline: 19,132 bytes).
   - `npm run build` in `frontend/`: **PASS** (built in 3.16s with zero errors).
   - Background processes: **None**.
+---
+
+## Phase 4b: Fix Groq "json_validate_failed" (400) in Slide Planning
+
+### 2026-10-18 - Lenient JSON Parser, 400 failed_generation Salvage, Doubled Backslashes, and TPM Budget
+- **Files Modified**:
+  - `backend/app/core/llm.py`:
+    - Updated `PROVIDER_REGISTRY["groq"]`: adjusted `planner_input_token_cap` to 4500 tokens, `max_output_tokens_slides` to 4500 tokens, and added `reasoning_effort: "low"` to options.
+    - Updated `get_llm()` to explicitly pass `reasoning_effort="low"` to `ChatGroq` when model contains `gpt-oss` or when `reasoning_effort` is set in options.
+  - `backend/app/core/slides.py`:
+    - Updated `SLIDES_SYSTEM` prompt: added explicit rules requiring doubled backslashes in JSON strings (for example `\\frac`), code snippets in a single string using `\n` for line breaks, and prohibiting trailing commas.
+    - Added `lenient_json_loads(text: str)`:
+      - Strips markdown code fences (```` ```json ````) and surrounding prose via root brace depth matching.
+      - Doubles invalid backslash escapes (not followed by `" \ / b f n r t u`, as well as LaTeX commands followed by letters).
+      - Escapes raw newlines, carriage returns, and tabs inside string values.
+      - Escapes unescaped double quotes inside string values.
+      - Strips trailing commas before `}` and `]`.
+      - Repairs truncated JSON by closing open strings, arrays, and objects in reverse stack order.
+    - Added `extract_failed_generation(exc: Exception)`: extracts `failed_generation` text from exception body, response, or repr on Groq/OpenAI 400 errors.
+    - Updated `format_short_error(err: Exception)`: guarantees short user-facing error messages under 300 characters, completely concealing raw provider payloads, JSON bodies, and `failed_generation`. Full detail logged to server log only.
+    - Updated `plan_slides_deck()`: bypasses `response_format={"type": "json_object"}` on Groq (prompt-only JSON); parses raw response text with `lenient_json_loads`; salvages 400 `failed_generation` before attempting repair; performs at most ONE repair call specifying validation problems, doubled backslashes, single-line code with `\n`, and no trailing commas; with salvage fallback on repair failure.
+    - Updated `_extract_compact_blog_context()` default cap to 4500 tokens.
+    - Updated `generate_slides_for_blog()` to pass `provider=provider` to `plan_slides_deck()`.
+- **Token Budget & TPM Assumptions**:
+  - Model: `openai/gpt-oss-120b` on Groq.
+  - Input budget: ~1,000 prompt tokens + 4,500 blog context cap = ~5,500 input tokens.
+  - Output budget: 4,500 max completion tokens (accommodates ~2,500 tokens of 10-12 slide JSON + ~1,000 low reasoning effort tokens).
+  - Total per-minute token assumption: ~10,000 tokens, staying strictly within Groq's 10k–15k TPM limit.
+- **Verification Results**:
+  - Case (a) Single-backslash LaTeX in equation field: **PASS** (parsed and validated into `SlideDeck`).
+  - Case (b) Code snippet containing raw newlines and quotes: **PASS** (parsed and validated into `SlideDeck`).
+  - Case (c) Trailing commas: **PASS** (parsed and validated into `SlideDeck`).
+  - Case (d) Output wrapped in ``` fences with prose before it: **PASS** (parsed and validated into `SlideDeck`).
+  - Case (e) Output truncated mid-array: **PASS** (repaired open containers and validated into `SlideDeck`).
+  - 400 salvage path: **PASS** (extracted `failed_generation` from simulated 400 exception and validated into `SlideDeck`).
+  - Short error path: **PASS** (error string 81 chars <= 300, zero raw payload or `failed_generation` leakage).
+  - `python -c "import app.main"`: **PASS** (clean import, code 0).
+  - Leftover files: **None**.
+  - Background processes: **None**.

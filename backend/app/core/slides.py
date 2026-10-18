@@ -47,6 +47,7 @@ Content rules: depth over decoration. Carry over equations, numbers, named syste
 Rhythm: never more than two consecutive slides with the same layout. Alternate dense slides (equation, table, code) with light ones (big_stat, two_blocks). Title, agenda and summary_grid are the fixed anchors: title first, agenda second, summary_grid last.
 Write in the same language as the blog.
 Rules: Use ASCII hyphens and plain spaces only. No Unicode dashes or non-breaking spaces. Write math symbols as words or LaTeX in the equation field. Code must come from the source article only; if the source has no code, do not use the code layout.
+In JSON strings write every LaTeX backslash doubled (for example \\frac). Put code snippets in a single string using \n for line breaks. Never use trailing commas.
 
 Output must be valid JSON only. Use ONLY these field names and this structure:
 {
@@ -65,20 +66,374 @@ Output must be valid JSON only. Use ONLY these field names and this structure:
  ]
 }
 
-CHECK before answering: slide count is within 1 of the requested count; every slide has a page_job; no duplicate titles; each layout has its payload (table -> table, equation -> equation, code -> code, big_stat -> stat, two_blocks -> exactly 2 blocks, summary_grid -> 4 to 6 blocks); equations are plain LaTeX math with balanced braces and no $ or \\begin. Return valid JSON only."""
+CHECK before answering: slide count is within 1 of the requested count; every slide has a page_job; no duplicate titles; each layout has its payload (table -> table, equation -> equation, code -> code, big_stat -> stat, two_blocks -> exactly 2 blocks, summary_grid -> 4 to 6 blocks); equations are plain LaTeX math with balanced braces and doubled backslashes; code snippets use \n for newlines; no trailing commas. Return valid JSON only."""
 
 
 # ---------------------------------------------------------------------------
-# Compact Blog Text Extractor & Parsing Helpers
+# Lenient JSON Loader & Parsing Helpers
 # ---------------------------------------------------------------------------
+
+def lenient_json_loads(text: str) -> Any:
+    """
+    Lenient JSON loader for LLM-generated JSON:
+    1. Strip ``` fences and any text before the first { and after the last matching }.
+    2. Fix invalid backslash escapes (a backslash not followed by " \ / b f n r t u gets doubled;
+       also doubles LaTeX commands like \frac, \times, \beta when followed by letters).
+    3. Escape raw newlines and tabs that appear inside string values.
+    4. Escape unescaped double quotes that appear inside string values.
+    5. Remove trailing commas before } and ].
+    6. If truncated, repair open strings, arrays, and objects.
+    """
+    if not text or not isinstance(text, str):
+        raise ValueError("Empty or non-string input to lenient_json_loads")
+
+    s = text.strip()
+
+    # 1. Strip markdown fences
+    if "```" in s:
+        fence_match = re.search(r"```(?:json)?\s*([\s\S]*?)\s*```", s, re.IGNORECASE)
+        if fence_match:
+            s = fence_match.group(1).strip()
+        else:
+            s = re.sub(r"^```(?:json)?\s*", "", s, flags=re.IGNORECASE)
+            s = re.sub(r"\s*```$", "", s)
+
+    # Find first {
+    first_brace = s.find("{")
+    if first_brace == -1:
+        raise ValueError("No JSON object found: missing opening '{'")
+    s = s[first_brace:]
+
+    # Quick path if clean JSON
+    try:
+        return json.loads(s)
+    except Exception:
+        pass
+
+    # Find matching closing brace of root object by tracking depth
+    root_closed_at = -1
+    depth = 0
+    in_str = False
+    esc = False
+    for idx, ch in enumerate(s):
+        if in_str:
+            if esc:
+                esc = False
+            elif ch == '\\':
+                esc = True
+            elif ch == '"':
+                in_str = False
+        else:
+            if ch == '"':
+                in_str = True
+            elif ch == '{':
+                depth += 1
+            elif ch == '}':
+                depth -= 1
+                if depth == 0:
+                    root_closed_at = idx
+                    break
+
+    # If root object closed cleanly, discard any trailing prose after it
+    if root_closed_at != -1:
+        s = s[: root_closed_at + 1]
+
+    # State machine pass
+    chars = []
+    length = len(s)
+    i = 0
+    in_string = False
+    stack = []
+    context_stack = []
+
+    while i < length:
+        c = s[i]
+
+        if not in_string:
+            if c == '"':
+                in_string = True
+                chars.append('"')
+                i += 1
+                continue
+            elif c == '{':
+                stack.append('}')
+                context_stack.append('obj_key')
+                chars.append(c)
+                i += 1
+                continue
+            elif c == '[':
+                stack.append(']')
+                context_stack.append('arr')
+                chars.append(c)
+                i += 1
+                continue
+            elif c == '}':
+                if stack and stack[-1] == '}':
+                    stack.pop()
+                if context_stack:
+                    context_stack.pop()
+                chars.append(c)
+                i += 1
+                continue
+            elif c == ']':
+                if stack and stack[-1] == ']':
+                    stack.pop()
+                if context_stack:
+                    context_stack.pop()
+                chars.append(c)
+                i += 1
+                continue
+            elif c == ':':
+                if context_stack and context_stack[-1] == 'obj_key':
+                    context_stack[-1] = 'obj_val'
+                chars.append(c)
+                i += 1
+                continue
+            elif c == ',':
+                j = i + 1
+                while j < length and s[j] in ' \t\r\n':
+                    j += 1
+                if j < length and s[j] in ('}', ']'):
+                    i += 1
+                    continue
+                if context_stack and context_stack[-1] == 'obj_val':
+                    context_stack[-1] = 'obj_key'
+                chars.append(c)
+                i += 1
+                continue
+            else:
+                chars.append(c)
+                i += 1
+                continue
+
+        else:
+            # Inside string
+            if c == '\\':
+                if i + 1 >= length:
+                    chars.append('\\\\')
+                    i += 1
+                    continue
+                next_c = s[i + 1]
+                if next_c in ('"', '\\', '/'):
+                    chars.append(c)
+                    chars.append(next_c)
+                    i += 2
+                    continue
+                elif next_c == 'u':
+                    if i + 5 < length and re.match(r'^[0-9a-fA-F]{4}$', s[i+2:i+6]):
+                        chars.append(c)
+                        chars.append(next_c)
+                        chars.extend(s[i+2:i+6])
+                        i += 6
+                        continue
+                    else:
+                        chars.append('\\\\')
+                        chars.append(next_c)
+                        i += 2
+                        continue
+                elif next_c in ('n', 'r', 't'):
+                    if i + 2 < length and s[i + 2].isalpha():
+                        chars.append('\\\\')
+                        chars.append(next_c)
+                        i += 2
+                        continue
+                    else:
+                        chars.append(c)
+                        chars.append(next_c)
+                        i += 2
+                        continue
+                elif next_c in ('b', 'f'):
+                    if i + 2 < length and s[i + 2].isalpha():
+                        chars.append('\\\\')
+                        chars.append(next_c)
+                        i += 2
+                        continue
+                    else:
+                        chars.append(c)
+                        chars.append(next_c)
+                        i += 2
+                        continue
+                else:
+                    chars.append('\\\\')
+                    chars.append(next_c)
+                    i += 2
+                    continue
+
+            elif c == '\r':
+                if i + 1 < length and s[i + 1] == '\n':
+                    i += 1
+                chars.append('\\n')
+                i += 1
+                continue
+
+            elif c == '\n':
+                chars.append('\\n')
+                i += 1
+                continue
+
+            elif c == '\t':
+                chars.append('\\t')
+                i += 1
+                continue
+
+            elif c == '"':
+                j = i + 1
+                while j < length and s[j] in ' \t\r\n':
+                    j += 1
+                
+                is_closing = False
+                if j >= length:
+                    is_closing = True
+                else:
+                    next_non_ws = s[j]
+                    current_ctx = context_stack[-1] if context_stack else None
+                    if current_ctx == 'obj_key':
+                        if next_non_ws == ':':
+                            is_closing = True
+                    elif current_ctx == 'obj_val':
+                        if next_non_ws in ('}', ','):
+                            if next_non_ws == ',':
+                                k = j + 1
+                                while k < length and s[k] in ' \t\r\n':
+                                    k += 1
+                                if k < length and (s[k] == '}' or re.match(r'^"[^"\\]+"\s*:', s[k:])):
+                                    is_closing = True
+                                else:
+                                    is_closing = False
+                            else:
+                                is_closing = True
+                    elif current_ctx == 'arr':
+                        if next_non_ws in (']', ','):
+                            is_closing = True
+                    else:
+                        if next_non_ws in (':', ',', '}', ']'):
+                            is_closing = True
+
+                if is_closing:
+                    in_string = False
+                    chars.append('"')
+                    i += 1
+                    continue
+                else:
+                    chars.append('\\"')
+                    i += 1
+                    continue
+
+            else:
+                chars.append(c)
+                i += 1
+                continue
+
+    repaired = "".join(chars).strip()
+
+    if in_string:
+        repaired += '"'
+        in_string = False
+
+    repaired = re.sub(r',\s*$', '', repaired)
+
+    if re.search(r':\s*$', repaired):
+        repaired += 'null'
+
+    if stack and stack[-1] == '}':
+        dangling_match = re.search(r',\s*"[^":,]*"\s*$', repaired)
+        if dangling_match:
+            repaired = repaired[: dangling_match.start()]
+
+    open_stack = []
+    str_mode = False
+    idx = 0
+    while idx < len(repaired):
+        ch = repaired[idx]
+        if not str_mode:
+            if ch == '"':
+                str_mode = True
+            elif ch == '{':
+                open_stack.append('}')
+            elif ch == '[':
+                open_stack.append(']')
+            elif ch == '}':
+                if open_stack and open_stack[-1] == '}':
+                    open_stack.pop()
+            elif ch == ']':
+                if open_stack and open_stack[-1] == ']':
+                    open_stack.pop()
+        else:
+            if ch == '\\':
+                idx += 1
+            elif ch == '"':
+                str_mode = False
+        idx += 1
+
+    if str_mode:
+        repaired += '"'
+
+    repaired = re.sub(r',\s*$', '', repaired)
+
+    for closer in reversed(open_stack):
+        repaired += closer
+
+    try:
+        return json.loads(repaired)
+    except Exception:
+        repaired_clean = re.sub(r',\s*([}\]])', r'\1', repaired)
+        return json.loads(repaired_clean)
+
 
 def _clean_json_text(text: str) -> str:
-    """Strip markdown code fences and whitespace from LLM response."""
+    """Backward compatibility alias for fence stripping."""
     s = text.strip()
     if s.startswith("```"):
         s = re.sub(r"^```(?:json)?\s*", "", s, flags=re.IGNORECASE)
         s = re.sub(r"\s*```$", "", s)
     return s.strip()
+
+
+def extract_failed_generation(exc: Exception) -> Optional[str]:
+    """Extract failed_generation text from a provider 400 response if present."""
+    body = getattr(exc, "body", None)
+    if isinstance(body, dict):
+        err = body.get("error")
+        if isinstance(err, dict) and "failed_generation" in err:
+            return str(err["failed_generation"])
+        if "failed_generation" in body:
+            return str(body["failed_generation"])
+
+    resp = getattr(exc, "response", None)
+    if resp is not None:
+        try:
+            data = resp.json() if callable(getattr(resp, "json", None)) else None
+            if isinstance(data, dict):
+                err = data.get("error")
+                if isinstance(err, dict) and "failed_generation" in err:
+                    return str(err["failed_generation"])
+                if "failed_generation" in data:
+                    return str(data["failed_generation"])
+        except Exception:
+            pass
+
+    if hasattr(exc, "__dict__"):
+        for val in exc.__dict__.values():
+            if isinstance(val, dict):
+                err = val.get("error")
+                if isinstance(err, dict) and "failed_generation" in err:
+                    return str(err["failed_generation"])
+                if "failed_generation" in val:
+                    return str(val["failed_generation"])
+
+    exc_str = str(exc)
+    if "failed_generation" in exc_str:
+        m = re.search(r"['\"]failed_generation['\"]\s*:\s*(['\"])(.*?)\1", exc_str, re.DOTALL)
+        if m:
+            return m.group(2)
+        idx = exc_str.find("failed_generation")
+        if idx != -1:
+            rest = exc_str[idx:]
+            qm = re.search(r"['\"]:\s*(['\"])([\s\S]*?)\1(?:\s*,\s*['\"]|\s*})", rest)
+            if qm:
+                return qm.group(2)
+
+    return None
 
 
 def _format_validation_summary(err: Exception) -> str:
@@ -91,12 +446,19 @@ def _format_validation_summary(err: Exception) -> str:
             msg = re.sub(r'\[https?://[^\]]+\]', '', msg).strip()
             lines.append(f"- {loc}: {msg}" if loc else f"- {msg}")
     else:
-        lines.append(f"- JSON syntax error: {str(err)[:100]}")
+        err_str = str(err)
+        if "json_validate_failed" in err_str or "failed_generation" in err_str:
+            lines.append("- Provider rejected JSON format (json_validate_failed)")
+        else:
+            lines.append(f"- JSON syntax error: {err_str[:100]}")
     return "\n".join(lines[:10])
 
 
 def format_short_error(err: Exception) -> str:
-    """Format short error: first 300 characters, no pydantic URLs, no stack of 18 errors."""
+    """
+    Format short user-facing error (max 300 chars, no raw provider payload, no failed_generation text).
+    Full detail goes to the server log only, scrubbed.
+    """
     if hasattr(err, "errors"):
         errs = err.errors()
         err_lines = []
@@ -110,19 +472,26 @@ def format_short_error(err: Exception) -> str:
             summary += f" (+{len(errs)-3} more issues)"
         msg = f"Slide schema validation failed: {summary}"
     else:
-        msg = f"Slide generation failed: {str(err)}"
+        err_str = str(err)
+        if "json_validate_failed" in err_str or "failed_generation" in err_str:
+            msg = "Slide generation failed: Provider rejected output format (JSON validation error)."
+        else:
+            msg = f"Slide generation failed: {err_str}"
+
+    # Strip any URLs, raw JSON braces or payloads
     msg = re.sub(r'https?://\S+', '', msg).strip()
+    msg = re.sub(r'\{[\s\S]*?\}', '', msg).strip()
     return msg[:300].strip()
 
 
 def _extract_compact_blog_context(
     blog: BlogResult,
-    planner_input_token_cap: Optional[int] = 6000,
+    planner_input_token_cap: Optional[int] = 4500,
 ) -> str:
     """
     Extract blog context for slide planning.
-    - If planner_input_token_cap is set (e.g. 6000 for Groq):
-      Extract headings + first ~600 chars of each section, capped at token_cap * 3 chars (~18k).
+    - If planner_input_token_cap is set (e.g. 4500 for Groq):
+      Extract headings + first ~600 chars of each section, capped at token_cap * 3 chars (~13.5k).
     - If planner_input_token_cap is None (frontier providers):
       Whole article with a hard ceiling of ~60k tokens (~240,000 chars).
       If draft exceeds 240,000 chars, truncate section bodies evenly.
@@ -186,22 +555,33 @@ def plan_slides_deck(
     slide_count: int = 10,
     audience: Optional[str] = None,
     llm: Optional[Any] = None,
-    planner_input_token_cap: Optional[int] = 6000,
+    planner_input_token_cap: Optional[int] = 4500,
     keys_to_scrub: Optional[list[str]] = None,
+    provider: Optional[str] = None,
 ) -> SlideDeck:
     """
-    Generate a SlideDeck from a blog using the active LLM with json_mode.
-    Parses raw text, strips fences, validates through tolerant SlideDeck schema.
-    If parsing/validation fails, performs ONE repair call with problem summary.
+    Generate a SlideDeck from a blog using the active LLM.
+    For provider 'groq' (or if json_mode causes 400s), does NOT send response_format=json_object.
+    Parses raw text via lenient_json_loads, handles single-backslash LaTeX,
+    escapes raw newlines/tabs in code snippets, strips trailing commas,
+    and repairs truncated JSON containers before validating through SlideDeck schema.
+    If provider raises 400 with failed_generation, attempts salvage before repair.
+    Performs at most ONE repair call if needed.
     """
     if llm is None:
         llm = slides_llm()
 
-    # Bind json_mode if supported, otherwise rely on system prompt JSON instruction
-    try:
-        json_llm = llm.bind(response_format={"type": "json_object"})
-    except Exception:
-        json_llm = llm
+    active_provider = (provider or "").strip().lower()
+    is_groq = active_provider == "groq" or "ChatGroq" in llm.__class__.__name__
+
+    # Bind json_mode only for non-Groq providers that support it
+    if is_groq:
+        active_llm = llm
+    else:
+        try:
+            active_llm = llm.bind(response_format={"type": "json_object"})
+        except Exception:
+            active_llm = llm
 
     compact_context = _extract_compact_blog_context(
         blog, planner_input_token_cap=planner_input_token_cap
@@ -215,49 +595,73 @@ def plan_slides_deck(
         "Generate the complete lecture-grade SlideDeck JSON now."
     )
 
-    response = json_llm.invoke([
-        {"role": "system", "content": SLIDES_SYSTEM},
-        {"role": "user", "content": user_prompt},
-    ])
-    raw_content = str(response.content if hasattr(response, "content") else response)
-    cleaned = _clean_json_text(raw_content)
-
-    # First attempt at parsing & validation
+    raw_content = ""
+    extracted_failed: Optional[str] = None
     last_err: Optional[Exception] = None
+
+    # First attempt: generation and parsing
     try:
-        data = json.loads(cleaned)
+        response = active_llm.invoke([
+            {"role": "system", "content": SLIDES_SYSTEM},
+            {"role": "user", "content": user_prompt},
+        ])
+        raw_content = str(response.content if hasattr(response, "content") else response)
+        data = lenient_json_loads(raw_content)
         return SlideDeck.model_validate(data)
-    except Exception as e:
-        last_err = e
+    except Exception as first_exc:
+        last_err = first_exc
+        # Check for 400 json_validate_failed or failed_generation salvage
+        extracted_failed = extract_failed_generation(first_exc)
+        if extracted_failed:
+            try:
+                logger.info("Attempting salvage of failed_generation payload from 400 response...")
+                salvaged_dict = lenient_json_loads(extracted_failed)
+                return SlideDeck.model_validate(salvaged_dict)
+            except Exception as salvage_err:
+                logger.warning(
+                    "Salvage of failed_generation failed: %s",
+                    scrub_secrets(str(salvage_err), keys=keys_to_scrub),
+                )
         logger.warning(
             "First SlideDeck JSON parse/validation failed: %s",
-            scrub_secrets(str(e), keys=keys_to_scrub),
+            scrub_secrets(str(first_exc), keys=keys_to_scrub),
         )
 
-    # ONE repair call
+    # ONE repair call (counts toward the 2-attempt limit)
     prob_summary = _format_validation_summary(last_err)
+    prev_text = raw_content or extracted_failed or ""
     repair_prompt = (
-        f"The previous JSON failed validation with the following problems:\n"
+        f"The previous output was invalid JSON with the following problems:\n"
         f"{prob_summary}\n\n"
-        f"Previous JSON:\n{cleaned[:3000]}\n\n"
-        f"Fix the JSON according to the schema. Return corrected JSON only."
+        "In JSON strings write every LaTeX backslash doubled (for example \\\\frac). "
+        "Put code snippets on one line in a single string using \\n for line breaks. "
+        "Never use trailing commas.\n\n"
+        f"Previous output excerpt:\n{prev_text[:2500]}\n\n"
+        "Fix the JSON according to the schema. Return corrected valid JSON only."
     )
 
     try:
-        repair_resp = json_llm.invoke([
+        repair_resp = active_llm.invoke([
             {"role": "system", "content": SLIDES_SYSTEM},
             {"role": "user", "content": repair_prompt},
         ])
         repair_raw = str(repair_resp.content if hasattr(repair_resp, "content") else repair_resp)
-        repair_cleaned = _clean_json_text(repair_raw)
-        repair_data = json.loads(repair_cleaned)
+        repair_data = lenient_json_loads(repair_raw)
         return SlideDeck.model_validate(repair_data)
-    except Exception as e:
+    except Exception as repair_exc:
+        salvage_repair = extract_failed_generation(repair_exc)
+        if salvage_repair:
+            try:
+                salvaged_repair_dict = lenient_json_loads(salvage_repair)
+                return SlideDeck.model_validate(salvaged_repair_dict)
+            except Exception:
+                pass
+
         logger.error(
             "SlideDeck repair attempt failed: %s",
-            scrub_secrets(str(e), keys=keys_to_scrub),
+            scrub_secrets(str(repair_exc), keys=keys_to_scrub),
         )
-        short_err = format_short_error(e)
+        short_err = format_short_error(repair_exc)
         scrubbed = scrub_secrets(short_err, keys=keys_to_scrub)
         raise ValueError(scrubbed) from None
 
@@ -421,8 +825,7 @@ def repair_single_slide_with_llm(
     except Exception:
         resp = llm.invoke(messages)
         raw = str(resp.content if hasattr(resp, "content") else resp)
-        cleaned = _clean_json_text(raw)
-        data = json.loads(cleaned)
+        data = lenient_json_loads(raw)
         return Slide.model_validate(data)
 
 
@@ -1451,6 +1854,7 @@ def generate_slides_for_blog(
             llm=active_llm,
             planner_input_token_cap=token_cap,
             keys_to_scrub=keys_to_scrub,
+            provider=provider,
         )
     except Exception as e:
         scrubbed = scrub_exception_chain(e, keys=keys_to_scrub)
