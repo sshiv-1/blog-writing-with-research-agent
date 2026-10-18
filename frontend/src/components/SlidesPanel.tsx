@@ -13,8 +13,10 @@ import {
 import {
   type SlideJobStatus,
   type StartSlidesRequest,
-  slidesDownloadUrl,
+  downloadSlideArtifact,
 } from '@/api/client'
+import { useAuth } from '@/context/AuthContext'
+import { useModelSettings, PROVIDERS } from '@/context/ModelSettingsContext'
 
 interface SlidesPanelProps {
   jobId: string
@@ -26,7 +28,7 @@ interface SlidesPanelProps {
   pdfBlobUrl: string | null
   isPdfLoading: boolean
   pdfError: string | null
-  start: (opts?: StartSlidesRequest) => Promise<void>
+  start: (opts?: StartSlidesRequest, byokHeaders?: Record<string, string>) => Promise<void>
   retryPdf: () => Promise<void>
 }
 
@@ -69,20 +71,84 @@ export default function SlidesPanel({
   start,
   retryPdf,
 }: SlidesPanelProps) {
+  const { user } = useAuth()
+  const {
+    effectiveSlidesProvider,
+    effectiveSlidesModel,
+    hasKeyForProvider,
+    getGuestKey,
+    savedKeys,
+    setIsSettingsOpen,
+  } = useModelSettings()
+
   const [slideCount, setSlideCount] = useState<number>(10)
   const [warningsOpen, setWarningsOpen] = useState(false)
+  const [localKeyError, setLocalKeyError] = useState<string | null>(null)
+  const [downloadingFormat, setDownloadingFormat] = useState<'pdf' | 'pptx' | 'tex' | null>(null)
+  const [downloadError, setDownloadError] = useState<string | null>(null)
 
   const isGenerating = isLoading || status?.status === 'queued' || status?.status === 'running'
   const isDone = status?.status === 'done'
-  const isError = Boolean(error || status?.status === 'error')
+  const isError = Boolean(error || status?.status === 'error' || localKeyError)
 
-  // Handle generation start
+  // Handle generation start with effective slides model and BYOK headers
   const handleStart = () => {
     if (!blogIsDone || isGenerating) return
-    void start({
-      slide_count: slideCount,
-      audience: audience || undefined,
-    })
+
+    setLocalKeyError(null)
+
+    if (effectiveSlidesProvider !== 'groq' && !hasKeyForProvider(effectiveSlidesProvider)) {
+      setLocalKeyError(
+        `API key required for ${PROVIDERS[effectiveSlidesProvider]?.name || effectiveSlidesProvider}. Please enter your key in settings.`
+      )
+      setIsSettingsOpen(true)
+      return
+    }
+
+    let byokHeaders: Record<string, string> | undefined
+    if (effectiveSlidesProvider === 'groq') {
+      const guestGroqKey = getGuestKey('groq')
+      const savedGroqKey = user && savedKeys.some((k) => k.provider === 'groq')
+      if (guestGroqKey || savedGroqKey) {
+        byokHeaders = {
+          'X-LLM-Slides-Provider': effectiveSlidesProvider,
+          'X-LLM-Slides-Model': effectiveSlidesModel,
+        }
+        if (guestGroqKey) {
+          byokHeaders['X-LLM-Key'] = guestGroqKey
+        }
+      }
+    } else {
+      byokHeaders = {
+        'X-LLM-Slides-Provider': effectiveSlidesProvider,
+        'X-LLM-Slides-Model': effectiveSlidesModel,
+      }
+      const guestKey = getGuestKey(effectiveSlidesProvider)
+      if (guestKey) {
+        byokHeaders['X-LLM-Key'] = guestKey
+      }
+    }
+
+    void start(
+      {
+        slide_count: slideCount,
+        audience: audience || undefined,
+      },
+      byokHeaders
+    )
+  }
+
+  // Handle authenticated download
+  const handleDownload = async (format: 'pdf' | 'pptx' | 'tex') => {
+    setDownloadError(null)
+    setDownloadingFormat(format)
+    try {
+      await downloadSlideArtifact(jobId, format, 'slides')
+    } catch (err: any) {
+      setDownloadError(err.message || `Failed to download ${format.toUpperCase()}`)
+    } finally {
+      setDownloadingFormat(null)
+    }
   }
 
   // ── ERROR STATE ──────────────────────────────────────────────────────────
@@ -244,56 +310,70 @@ export default function SlidesPanel({
 
           {/* Right: Download buttons */}
           <div className="flex items-center gap-1.5">
-            <a
-              href={slidesDownloadUrl(jobId, 'pdf')}
-              download
-              className="flex items-center gap-1.5 h-7 px-2.5 text-xs font-medium transition-colors"
+            <button
+              type="button"
+              onClick={() => handleDownload('pdf')}
+              disabled={downloadingFormat === 'pdf'}
+              className="flex items-center gap-1.5 h-7 px-2.5 text-xs font-medium rounded transition-colors disabled:opacity-50 cursor-pointer"
               style={{
                 borderRadius: '4px',
                 background: 'var(--color-elevated)',
                 border: '1px solid var(--color-border)',
                 color: 'var(--color-ink-2)',
-                textDecoration: 'none',
               }}
             >
-              <Download className="h-3.5 w-3.5" />
+              <Download className={`h-3.5 w-3.5 ${downloadingFormat === 'pdf' ? 'animate-bounce' : ''}`} />
               PDF
-            </a>
+            </button>
 
-            <a
-              href={slidesDownloadUrl(jobId, 'pptx')}
-              download
-              className="flex items-center gap-1.5 h-7 px-2.5 text-xs font-medium transition-colors"
+            <button
+              type="button"
+              onClick={() => handleDownload('pptx')}
+              disabled={downloadingFormat === 'pptx'}
+              className="flex items-center gap-1.5 h-7 px-2.5 text-xs font-medium rounded transition-colors disabled:opacity-50 cursor-pointer"
               style={{
                 borderRadius: '4px',
                 background: 'var(--color-elevated)',
                 border: '1px solid var(--color-border)',
                 color: 'var(--color-ink-2)',
-                textDecoration: 'none',
               }}
             >
-              <Download className="h-3.5 w-3.5" />
+              <Download className={`h-3.5 w-3.5 ${downloadingFormat === 'pptx' ? 'animate-bounce' : ''}`} />
               PPTX
-            </a>
+            </button>
 
-            <a
-              href={slidesDownloadUrl(jobId, 'tex')}
-              download
-              className="flex items-center gap-1.5 h-7 px-2.5 text-xs font-medium transition-colors"
+            <button
+              type="button"
+              onClick={() => handleDownload('tex')}
+              disabled={downloadingFormat === 'tex'}
+              className="flex items-center gap-1.5 h-7 px-2.5 text-xs font-medium rounded transition-colors disabled:opacity-50 cursor-pointer"
               style={{
                 borderRadius: '4px',
                 background: 'var(--color-elevated)',
                 border: '1px solid var(--color-border)',
                 color: 'var(--color-ink-4)',
-                textDecoration: 'none',
               }}
               title="Download raw LaTeX source"
             >
-              <FileCode className="h-3.5 w-3.5" />
+              <FileCode className={`h-3.5 w-3.5 ${downloadingFormat === 'tex' ? 'animate-bounce' : ''}`} />
               .tex
-            </a>
+            </button>
           </div>
         </div>
+
+        {/* Download failure error notice */}
+        {downloadError && (
+          <div className="px-4 py-2 bg-[var(--color-error-bg)] text-[var(--color-error)] text-xs border-x border-[var(--color-border)] flex items-center justify-between">
+            <span>{downloadError}</span>
+            <button
+              type="button"
+              onClick={() => setDownloadError(null)}
+              className="underline ml-2 text-xs hover:opacity-80 focus:outline-none"
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
 
         {/* Warnings dropdown (if compiler emitted warnings) */}
         {warnings.length > 0 && (

@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Globe, BookOpen, Loader2, PenLine } from 'lucide-react'
 import { generateBlog, type GenerateRequest } from '@/api/client'
+import { useModelSettings, PROVIDERS } from '@/context/ModelSettingsContext'
+import { useAuth } from '@/context/AuthContext'
 
 const TONES = ['professional', 'casual', 'conversational', 'technical', 'academic', 'friendly']
 const LENGTHS = [
@@ -71,6 +73,16 @@ function SelectField({
 
 export default function BlogForm() {
   const navigate = useNavigate()
+  const { user } = useAuth()
+  const {
+    provider,
+    effectiveArticleModel,
+    getGuestKey,
+    savedKeys,
+    hasKeyForProvider,
+    setIsSettingsOpen,
+  } = useModelSettings()
+
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -87,10 +99,43 @@ export default function BlogForm() {
     e.preventDefault()
     if (!form.topic.trim()) return
 
+    // Non-Groq provider must have an API key available
+    if (provider !== 'groq' && !hasKeyForProvider(provider)) {
+      setError(`API key required for ${PROVIDERS[provider]?.name || provider}. Please enter your key in settings.`)
+      setIsSettingsOpen(true)
+      return
+    }
+
     setIsSubmitting(true)
     setError(null)
+
+    // Build BYOK headers
+    let byokHeaders: Record<string, string> | undefined
+    if (provider === 'groq') {
+      const guestGroqKey = getGuestKey('groq')
+      const savedGroqKey = user && savedKeys.some((k) => k.provider === 'groq')
+      if (guestGroqKey || savedGroqKey) {
+        byokHeaders = {
+          'X-LLM-Provider': provider,
+          'X-LLM-Model': effectiveArticleModel,
+        }
+        if (guestGroqKey) {
+          byokHeaders['X-LLM-Key'] = guestGroqKey
+        }
+      }
+    } else {
+      byokHeaders = {
+        'X-LLM-Provider': provider,
+        'X-LLM-Model': effectiveArticleModel,
+      }
+      const guestKey = getGuestKey(provider)
+      if (guestKey) {
+        byokHeaders['X-LLM-Key'] = guestKey
+      }
+    }
+
     try {
-      const { job_id } = await generateBlog(form)
+      const { job_id } = await generateBlog(form, byokHeaders)
       navigate(`/result/${job_id}`, { state: { audience: form.audience } })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to connect to the server.')

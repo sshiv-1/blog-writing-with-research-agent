@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { ArrowLeft, AlertCircle, RefreshCw, BookOpen, AlignLeft, Presentation } from 'lucide-react'
+import Header from '@/components/Header'
 import { useJobStatus } from '@/hooks/useJobStatus'
 import { useSlideJob } from '@/hooks/useSlideJob'
 import ProgressStepper from '@/components/ProgressStepper'
@@ -22,49 +23,33 @@ export default function Result() {
   const slideJob = useSlideJob(jobId ?? null)
   const [activeTab, setActiveTab] = useState<ResultTab>('article')
 
+  const is404 = error?.toLowerCase().includes('not found') || error?.includes('404')
+
   return (
     <div
       className="min-h-[100dvh] flex flex-col"
       style={{ background: 'var(--color-canvas)' }}
     >
-      {/* Top bar */}
-      <header
-        className="sticky top-0 z-40 flex items-center px-6 h-14"
-        style={{
-          background: 'var(--color-overlay)',
-          borderBottom: '1px solid var(--color-border)',
-          backdropFilter: 'blur(12px)',
-          WebkitBackdropFilter: 'blur(12px)',
-        }}
-      >
-        <div className="w-full max-w-6xl mx-auto flex items-center justify-between">
-          {/* Left: back + wordmark */}
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={() => navigate('/')}
-              className="flex items-center gap-1.5 h-8 px-3 text-sm font-medium transition-colors"
-              style={{
-                borderRadius: '4px',
-                background: 'var(--color-surface)',
-                border: '1px solid var(--color-border)',
-                color: 'var(--color-ink-3)',
-              }}
-            >
-              <ArrowLeft className="h-3.5 w-3.5" strokeWidth={2} />
-              New article
-            </button>
-
-            <span
-              className="text-sm font-semibold tracking-tight hidden sm:block"
-              style={{ color: 'var(--color-ink)', letterSpacing: '-0.02em' }}
-            >
-              SAGE
-            </span>
-          </div>
-
-          {/* Right: status badge */}
-          {isDone && (
+      {/* Top bar using shared Header with Result slots */}
+      <Header
+        leftSlot={
+          <button
+            type="button"
+            onClick={() => navigate('/')}
+            className="flex items-center gap-1.5 h-8 px-3 text-xs sm:text-sm font-medium transition-colors"
+            style={{
+              borderRadius: '4px',
+              background: 'var(--color-surface)',
+              border: '1px solid var(--color-border)',
+              color: 'var(--color-ink-3)',
+            }}
+          >
+            <ArrowLeft className="h-3.5 w-3.5" strokeWidth={2} />
+            New article
+          </button>
+        }
+        rightSlot={
+          isDone ? (
             <span
               className="flex items-center gap-1.5 text-xs font-medium px-2.5 py-1"
               style={{
@@ -81,9 +66,9 @@ export default function Result() {
               />
               Article ready
             </span>
-          )}
-        </div>
-      </header>
+          ) : undefined
+        }
+      />
 
       {/* Main content */}
       <main className="flex-1 w-full">
@@ -138,10 +123,12 @@ export default function Result() {
               className="text-lg font-bold mb-2"
               style={{ color: 'var(--color-ink)', letterSpacing: '-0.02em' }}
             >
-              Generation failed
+              {is404 ? 'Article not available' : 'Generation failed'}
             </h2>
             <p className="text-sm max-w-[36ch] mb-6" style={{ color: 'var(--color-ink-3)' }}>
-              {error}
+              {is404
+                ? 'This article is no longer available or was created under another account.'
+                : error}
             </p>
             <button
               type="button"
@@ -153,8 +140,8 @@ export default function Result() {
                 color: 'var(--color-ink-inv)',
               }}
             >
-              <RefreshCw className="h-4 w-4" strokeWidth={2} />
-              Try again
+              {is404 ? <ArrowLeft className="h-4 w-4" strokeWidth={2} /> : <RefreshCw className="h-4 w-4" strokeWidth={2} />}
+              {is404 ? 'Back to home' : 'Try again'}
             </button>
           </div>
         )}

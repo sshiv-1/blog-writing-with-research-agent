@@ -4,7 +4,7 @@ import {
   type StartSlidesRequest,
   getSlidesStatus,
   startSlides,
-  slidesDownloadUrl,
+  fetchPdfBlob,
 } from '@/api/client'
 
 export interface UseSlideJobResult {
@@ -14,7 +14,7 @@ export interface UseSlideJobResult {
   pdfBlobUrl: string | null
   isPdfLoading: boolean
   pdfError: string | null
-  start: (options?: StartSlidesRequest) => Promise<void>
+  start: (options?: StartSlidesRequest, byokHeaders?: Record<string, string>) => Promise<void>
   retryPdf: () => Promise<void>
 }
 
@@ -43,12 +43,7 @@ export function useSlideJob(jobId: string | null): UseSlideJobResult {
     setIsPdfLoading(true)
     setPdfError(null)
     try {
-      const res = await fetch(slidesDownloadUrl(targetJobId, 'pdf'))
-      if (!res.ok) {
-        throw new Error(`Failed to load PDF preview (${res.status} ${res.statusText})`)
-      }
-      const blob = await res.blob()
-      const url = URL.createObjectURL(blob)
+      const { url } = await fetchPdfBlob(targetJobId)
 
       if (pdfBlobUrlRef.current) {
         URL.revokeObjectURL(pdfBlobUrlRef.current)
@@ -151,7 +146,7 @@ export function useSlideJob(jobId: string | null): UseSlideJobResult {
     }
   }, [jobId, clearPolling, fetchPdf, startPolling])
 
-  const start = useCallback(async (options?: StartSlidesRequest) => {
+  const start = useCallback(async (options?: StartSlidesRequest, byokHeaders?: Record<string, string>) => {
     if (!jobId) return
 
     setIsLoading(true)
@@ -159,7 +154,7 @@ export function useSlideJob(jobId: string | null): UseSlideJobResult {
     setPdfError(null)
 
     try {
-      const initialStatus = await startSlides(jobId, options)
+      const initialStatus = await startSlides(jobId, options, byokHeaders)
       setStatus(initialStatus)
       startPolling(jobId)
     } catch (err) {

@@ -1,42 +1,18 @@
 import BlogForm from '@/components/BlogForm'
+import Header from '@/components/Header'
+import { useAuth } from '@/context/AuthContext'
+import { useModelSettings } from '@/context/ModelSettingsContext'
 
 export default function Home() {
+  const { user, isConfigured } = useAuth()
+  const { setIsSignInOpen } = useModelSettings()
+
   return (
     <div
       className="min-h-[100dvh] flex flex-col"
       style={{ background: 'var(--color-canvas)' }}
     >
-      {/* Top bar — full width with inner max-width alignment */}
-      <header
-        className="sticky top-0 z-40 flex items-center h-14 px-6"
-        style={{
-          background: 'var(--color-overlay)',
-          borderBottom: '1px solid var(--color-border)',
-          backdropFilter: 'blur(12px)',
-          WebkitBackdropFilter: 'blur(12px)',
-        }}
-      >
-        <div className="w-full max-w-6xl mx-auto flex items-center gap-2">
-          <span
-            className="text-sm font-semibold"
-            style={{ color: 'var(--color-ink)', letterSpacing: '-0.02em' }}
-          >
-            SAGE
-          </span>
-          <span
-            className="text-xs px-1.5 py-0.5"
-            style={{
-              background: 'var(--color-accent-muted)',
-              color: 'var(--color-accent)',
-              fontSize: '0.6875rem',
-              fontWeight: 600,
-              borderRadius: '3px',
-            }}
-          >
-            BETA
-          </span>
-        </div>
-      </header>
+      <Header />
 
       {/* Main — split layout at lg, stacked on mobile */}
       <main className="flex-1 flex items-start justify-center px-6 py-12 sm:py-16">
@@ -219,6 +195,20 @@ export default function Home() {
                 <BlogForm />
               </div>
             </div>
+
+            {/* Guest note under form card */}
+            {!user && isConfigured && (
+              <p className="text-center text-xs text-[var(--color-ink-3)] -mt-8 mb-4 lg:mb-0">
+                <button
+                  type="button"
+                  onClick={() => setIsSignInOpen(true)}
+                  className="text-[var(--color-accent)] hover:underline font-medium cursor-pointer"
+                >
+                  Sign in
+                </button>{' '}
+                to save your history and keys.
+              </p>
+            )}
 
           </div>
         </div>
