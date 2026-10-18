@@ -373,6 +373,76 @@ python cli.py \
 
 ---
 
+# Deployment
+
+SAGE is designed for seamless zero-downtime deployment with a containerized backend on **Render** and a static SPA on **Vercel**.
+
+---
+
+## 1. Backend Deployment (Render)
+
+Deploy the backend as a **Web Service** using the included production Dockerfile.
+
+### Setup Steps
+1. Create a new **Web Service** in Render and connect your repository.
+2. Configure settings:
+   - **Root Directory**: `backend`
+   - **Environment**: `Docker`
+   - **Health Check Path**: `/health` (responds immediately with `{"status": "ok"}` without external dependencies)
+3. Set the following environment variables in the Render dashboard:
+
+| Variable | Required | Description |
+| :--- | :---: | :--- |
+| `GROQ_BLOG_API_KEY` | Yes | Default server Groq API key for article generation |
+| `GROQ_PPTX_API_KEY` | Yes | Default server Groq API key for slide generation |
+| `TAVILY_API_KEY` | Yes | Tavily search API key for real-time web research |
+| `SUPABASE_URL` | Optional | Supabase project URL (`https://<project-ref>.supabase.co`). If unset, runs in guest in-memory mode. |
+| `SUPABASE_SERVICE_ROLE_KEY` | Optional | Supabase service role secret (backend only). |
+| `SUPABASE_JWT_SECRET` | Optional | Supabase JWT secret for HS256 validation. If omitted, verifies via JWKS RS256/ES256. |
+| `APP_ENCRYPTION_KEY` | Optional | 32-byte Fernet base64 key for BYOK encryption. Generate with: `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"` |
+| `CORS_ORIGINS` | Yes | Comma-separated allowed frontend origins (e.g. `https://sage-app.vercel.app`). Localhost is always included. |
+| `TRUST_PROXY` | Yes | Set to `true` to enable client IP extraction from `X-Forwarded-For` behind Render's reverse proxy. |
+| `GUEST_JOBS_PER_HOUR` | Optional | Sliding hourly rate limit for guest jobs (default: `20`). Soft in-memory abuse control. |
+| `DAILY_USER_JOB_CAP` | Optional | Daily job limit per registered user (default: `50`). |
+| `MAX_CONCURRENT_USER_JOBS` | Optional | Maximum concurrent jobs per registered user (default: `3`). |
+
+> [!NOTE]
+> **Interrupted Job Recovery**: If Render restarts the backend container, any in-flight or queued jobs from previous runs are automatically detected and marked as failed (`Interrupted by a server restart`) during application startup and on read.
+
+---
+
+## 2. Frontend Deployment (Vercel)
+
+Deploy the frontend as a static SPA on Vercel.
+
+### Setup Steps
+1. Import your repository into **Vercel**.
+2. Configure settings:
+   - **Framework Preset**: `Vite`
+   - **Root Directory**: `frontend`
+   - **Build Command**: `npm run build`
+   - **Output Directory**: `dist`
+3. Client-side routing is configured via [`frontend/vercel.json`](file:///c:/Coding/Project/blog-writing-with-research-agent/frontend/vercel.json) to rewrite deep links to `index.html`.
+4. Configure environment variables in the Vercel dashboard:
+
+| Variable | Required | Description |
+| :--- | :---: | :--- |
+| `VITE_API_URL` | Yes | URL of your deployed Render backend (e.g. `https://sage-api.onrender.com`) |
+| `VITE_SUPABASE_URL` | Optional | Supabase project URL for authentication and history |
+| `VITE_SUPABASE_ANON_KEY` | Optional | Supabase public anonymous key (never use service role key in frontend) |
+
+---
+
+## 3. Supabase Dashboard Configuration
+
+If using Supabase for user authentication, saved BYOK keys, and history:
+1. In your Supabase Dashboard, navigate to **Authentication -> URL Configuration**.
+2. Set **Site URL** to your Vercel deployment URL (e.g. `https://sage-app.vercel.app`).
+3. Add `https://sage-app.vercel.app/**` to **Redirect URLs**.
+4. Run the schema migrations from [`supabase/schema.sql`](file:///c:/Coding/Project/blog-writing-with-research-agent/supabase/schema.sql) in the Supabase SQL Editor.
+
+---
+
 # Current Capabilities
 
 * Multi-agent orchestration

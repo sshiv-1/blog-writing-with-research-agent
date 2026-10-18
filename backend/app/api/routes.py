@@ -50,14 +50,33 @@ router = APIRouter()
 
 # ---------------------------------------------------------------------------
 # Abuse & Rate Limiting Configurations
+# Note: Guest rate limiting is a soft in-memory abuse control to protect server resources.
 # ---------------------------------------------------------------------------
 GUEST_JOBS_PER_HOUR = int(os.getenv("GUEST_JOBS_PER_HOUR", "20"))
 DAILY_USER_JOB_CAP = int(os.getenv("DAILY_USER_JOB_CAP", "50"))
 MAX_CONCURRENT_USER_JOBS = int(os.getenv("MAX_CONCURRENT_USER_JOBS", "3"))
+TRUST_PROXY = os.getenv("TRUST_PROXY", "").strip().lower() in ("true", "1")
 
 _rate_limit_lock = threading.Lock()
 _guest_job_timestamps: dict[str, list[float]] = defaultdict(list)
 _user_key_save_timestamps: dict[str, list[float]] = defaultdict(list)
+
+
+def _get_client_ip(request: Request) -> str:
+    """
+    Extract client IP for rate limiting.
+    When TRUST_PROXY is enabled (e.g. behind Render or a reverse proxy),
+    uses the LAST entry of X-Forwarded-For (the IP appended by the trusted proxy),
+    falling back to request.client.host.
+    Note: Guest rate limiting is a soft abuse control.
+    """
+    if TRUST_PROXY:
+        xff = request.headers.get("X-Forwarded-For")
+        if xff:
+            parts = [p.strip() for p in xff.split(",") if p.strip()]
+            if parts:
+                return parts[-1]
+    return request.client.host if request.client else "unknown"
 
 
 def _check_guest_rate_limit(client_ip: str) -> bool:
@@ -198,7 +217,7 @@ async def start_generation(
     # Abuse controls
     if user is None:
         if selection is None:  # Using server Groq key
-            client_ip = request.client.host if request.client else "unknown"
+            client_ip = _get_client_ip(request)
             if not _check_guest_rate_limit(client_ip):
                 raise HTTPException(
                     status_code=429,
@@ -582,7 +601,7 @@ async def test_llm_connection(
     Test connectivity to an LLM provider using a ~16 token probe.
     Rate-limited in-memory per client IP (10 requests/minute).
     """
-    client_ip = request.client.host if request.client else "unknown"
+    client_ip = _get_client_ip(request)
     if not check_ip_rate_limit(client_ip):
         raise HTTPException(
             status_code=429,

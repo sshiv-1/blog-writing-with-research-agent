@@ -31,11 +31,13 @@ app = FastAPI(
 # ---------------------------------------------------------------------------
 # CORS
 # ---------------------------------------------------------------------------
-_raw_origins = os.getenv(
-    "ALLOWED_ORIGINS",
-    "http://localhost:5173,http://127.0.0.1:5173",
-)
-ALLOWED_ORIGINS = [o.strip() for o in _raw_origins.split(",") if o.strip()]
+_DEFAULT_ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173"]
+_env_origins = [
+    o.strip()
+    for o in (os.getenv("CORS_ORIGINS") or os.getenv("ALLOWED_ORIGINS") or "").split(",")
+    if o.strip() and o.strip() != "*"
+]
+ALLOWED_ORIGINS = list(dict.fromkeys(_DEFAULT_ORIGINS + _env_origins))
 
 app.add_middleware(
     CORSMiddleware,
@@ -43,14 +45,18 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=[
-        "*",
         "Authorization",
+        "Content-Type",
+        "Accept",
+        "Origin",
+        "User-Agent",
         "X-LLM-Provider",
         "X-LLM-Model",
         "X-LLM-Key",
         "X-LLM-Slides-Provider",
         "X-LLM-Slides-Model",
     ],
+    expose_headers=["Content-Disposition"],
 )
 
 
