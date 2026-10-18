@@ -16,7 +16,9 @@ generate_blog(job_id, topic, ...) -> None
 """
 from __future__ import annotations
 
+import json
 import logging
+import re
 import threading
 import time
 import warnings
@@ -33,21 +35,36 @@ from langgraph.types import Send
 from ..models.schemas import (
     EvidenceItem,
     EvidencePack,
+    LLMSelection,
     Plan,
     RouterDecision,
     State,
     Task,
 )
 from .jobs import update_job
-from .llm import blog_llm
+from .llm import (
+    PROVIDER_REGISTRY,
+    blog_llm,
+    get_llm,
+    scrub_exception_chain,
+)
 
 warnings.filterwarnings("ignore")
 logger = logging.getLogger(__name__)
 
-# ---------------------------------------------------------------------------
-# Shared LLM instance — created once at module import, reused by all nodes.
-# ---------------------------------------------------------------------------
-llm = blog_llm()
+
+class _LazyBlogLLM:
+    """Lazy proxy so module import does not trigger immediate LLM instantiation or env checks."""
+    _instance = None
+
+    def __getattr__(self, name):
+        if self._instance is None:
+            self._instance = blog_llm()
+        return getattr(self._instance, name)
+
+
+# Legacy module-level fallback (lazy)
+llm = _LazyBlogLLM()
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -344,21 +361,77 @@ def _iso_to_date(s: Optional[str]) -> Optional[date]:
         return None
 
 
-# Limit parallel workers to avoid Groq 429 rate limits
+# Limit parallel workers to avoid Groq 429 rate limits (default fallback)
 _WORKER_SEMAPHORE = threading.Semaphore(3)
 
 
+def _clean_json_text(raw: str) -> str:
+    cleaned = raw.strip()
+    if cleaned.startswith("```"):
+        cleaned = re.sub(r"^```(?:json)?\s*", "", cleaned, flags=re.IGNORECASE)
+        cleaned = re.sub(r"\s*```$", "", cleaned)
+    return cleaned.strip()
+
+
+def invoke_structured(
+    llm_instance: Any,
+    schema: type[T],
+    messages: list[Any],
+    method: Optional[str] = None,
+    keys_to_scrub: Optional[list[str]] = None,
+) -> T:
+    """
+    Invoke LLM with structured output, falling back to JSON schema prompt + raw invoke + validation.
+    """
+    try:
+        if method:
+            runnable = llm_instance.with_structured_output(schema, method=method)
+        else:
+            runnable = llm_instance.with_structured_output(schema)
+        return runnable.invoke(messages)
+    except Exception as first_exc:
+        logger.warning(
+            "with_structured_output failed (%s), falling back to prompt JSON schema validation",
+            scrub_exception_chain(first_exc, keys_to_scrub),
+        )
+
+    # Fallback to prompt-based JSON output and validation
+    schema_json = json.dumps(schema.model_json_schema(), indent=2)
+    fallback_sys = (
+        f"\nIMPORTANT: Your output MUST be a valid JSON object matching this schema:\n"
+        f"{schema_json}\n"
+        f"Return ONLY valid JSON matching the schema above. Do NOT include markdown code blocks or extra text."
+    )
+    fallback_messages = list(messages)
+    if fallback_messages and isinstance(fallback_messages[0], SystemMessage):
+        fallback_messages[0] = SystemMessage(
+            content=fallback_messages[0].content + "\n" + fallback_sys
+        )
+    else:
+        fallback_messages.insert(0, SystemMessage(content=fallback_sys))
+
+    resp = llm_instance.invoke(fallback_messages)
+    raw = _extract_text(resp.content if hasattr(resp, "content") else resp)
+    cleaned = _clean_json_text(raw)
+    data = json.loads(cleaned)
+    return schema.model_validate(data)
+
+
 # ═══════════════════════════════════════════════════════════════════════════
-# LangGraph node functions
+# LangGraph edge functions
 # ═══════════════════════════════════════════════════════════════════════════
 
 
-def router_node(state: State) -> dict:
+def route_next(state: State) -> str:
+    """Conditional edge: go to research or skip straight to planning."""
+    return "research" if state["needs_research"] else "orchestrator"
+
+
+def execute_router(state: State, active_llm: Any, keys_to_scrub: Optional[list[str]] = None) -> dict:
     """Decide whether web research is needed and emit search queries."""
     topic = state["topic"]
     use_web = state.get("use_web", True)
 
-    # Short-circuit: user disabled web research
     if not use_web:
         return {
             "needs_research": False,
@@ -367,35 +440,27 @@ def router_node(state: State) -> dict:
             "recency_days": 3650,
         }
 
-    decider = llm.with_structured_output(RouterDecision)
+    messages = [
+        SystemMessage(content=ROUTER_PROMPT),
+        HumanMessage(content=f"Topic: {topic}\nAs-of date: {state['as_of']}"),
+    ]
 
     @retry_on_rate_limit(max_retries=3, initial_backoff=2.0)
     def _invoke():
-        return decider.invoke(
-            [
-                SystemMessage(content=ROUTER_PROMPT),
-                HumanMessage(content=f"Topic: {topic}\nAs-of date: {state['as_of']}"),
-            ]
-        )
+        return invoke_structured(active_llm, RouterDecision, messages, keys_to_scrub=keys_to_scrub)
 
     decision = _invoke()
-
     recency_days = {"open_book": 7, "hybrid": 45}.get(decision.mode, 3650)
 
     return {
         "needs_research": decision.needs_research,
         "mode": decision.mode,
-        "queries": decision.queries,
+        "queries": decision.queries or [],
         "recency_days": recency_days,
     }
 
 
-def route_next(state: State) -> str:
-    """Conditional edge: go to research or skip straight to planning."""
-    return "research" if state["needs_research"] else "orchestrator"
-
-
-def research_node(state: State) -> dict:
+def execute_research(state: State, active_llm: Any, keys_to_scrub: Optional[list[str]] = None) -> dict:
     """Fetch web evidence and synthesise it into a deduplicated EvidenceItem list."""
     # Cap queries to top 4 to stay well within Groq TPM limits and prevent redundant web searches
     queries = (state.get("queries", []) or [])[:4]
@@ -427,7 +492,6 @@ def research_node(state: State) -> dict:
         for i, r in enumerate(unique_raw_results)
     )
 
-    extractor = llm.with_structured_output(EvidencePack, method="json_mode")
     messages = [
         SystemMessage(content=RESEARCH_SYSTEM),
         HumanMessage(
@@ -441,7 +505,13 @@ def research_node(state: State) -> dict:
 
     @retry_on_rate_limit(max_retries=3, initial_backoff=2.0)
     def _invoke():
-        return extractor.invoke(messages)
+        return invoke_structured(
+            active_llm,
+            EvidencePack,
+            messages,
+            method="json_mode",
+            keys_to_scrub=keys_to_scrub,
+        )
 
     pack = _invoke()
 
@@ -461,9 +531,8 @@ def research_node(state: State) -> dict:
     return {"evidence": evidence}
 
 
-def orchestator_node(state: State) -> dict:
+def execute_orchestrator(state: State, active_llm: Any, keys_to_scrub: Optional[list[str]] = None) -> dict:
     """Generate a structured outline (Plan) for the blog post."""
-    planner = llm.with_structured_output(Plan)
     evidence = state.get("evidence", [])
     mode = state.get("mode", "closed_book")
 
@@ -495,7 +564,7 @@ def orchestator_node(state: State) -> dict:
 
     @retry_on_rate_limit(max_retries=3, initial_backoff=2.0)
     def _invoke():
-        return planner.invoke(messages)
+        return invoke_structured(active_llm, Plan, messages, keys_to_scrub=keys_to_scrub)
 
     plan = _invoke()
 
@@ -535,7 +604,7 @@ def fanout(state: State) -> List[Send]:
     ]
 
 
-def worker_node(payload: dict) -> dict:
+def execute_worker(payload: dict, active_llm: Any, worker_semaphore: threading.Semaphore) -> dict:
     """Write a single blog section from its task payload and return it."""
     task = Task(**payload["task"])
     plan = Plan(**payload["plan"])
@@ -582,8 +651,8 @@ def worker_node(payload: dict) -> dict:
 
     @retry_on_rate_limit(max_retries=5, initial_backoff=2.0)
     def _invoke():
-        with _WORKER_SEMAPHORE:
-            return llm.invoke(messages)
+        with worker_semaphore:
+            return active_llm.invoke(messages)
 
     response = _invoke()
 
@@ -592,7 +661,7 @@ def worker_node(payload: dict) -> dict:
     return {"sections": [(task.id, section_md)]}
 
 
-def reducer_node(state: State) -> dict:
+def execute_reducer(state: State) -> dict:
     """Merge all parallel sections into the final ordered Markdown blog post."""
     plan = state["plan"]
     if plan is None:
@@ -606,43 +675,34 @@ def reducer_node(state: State) -> dict:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# Status-aware node wrappers
-# Each wrapper updates the job store before delegating to the real node.
+# Dynamic Graph Builder (closures capture LLM and semaphore; zero secrets in state)
 # ═══════════════════════════════════════════════════════════════════════════
 
+def _build_workflow(
+    active_llm: Any,
+    worker_semaphore: threading.Semaphore,
+    keys_to_scrub: Optional[list[str]] = None,
+):
+    def _router(state: State) -> dict:
+        update_job(state["job_id"], status="running", stage="routing", progress=10)
+        return execute_router(state, active_llm, keys_to_scrub)
 
-def _router(state: State) -> dict:
-    update_job(state["job_id"], status="running", stage="routing", progress=10)
-    return router_node(state)
+    def _research(state: State) -> dict:
+        update_job(state["job_id"], stage="researching", progress=25)
+        return execute_research(state, active_llm, keys_to_scrub)
 
+    def _orchestrator(state: State) -> dict:
+        update_job(state["job_id"], stage="planning", progress=50)
+        return execute_orchestrator(state, active_llm, keys_to_scrub)
 
-def _research(state: State) -> dict:
-    update_job(state["job_id"], stage="researching", progress=25)
-    return research_node(state)
+    def _worker(payload: dict) -> dict:
+        update_job(payload["job_id"], stage="writing", progress=65)
+        return execute_worker(payload, active_llm, worker_semaphore)
 
+    def _reducer(state: State) -> dict:
+        update_job(state["job_id"], stage="finalizing", progress=90)
+        return execute_reducer(state)
 
-def _orchestrator(state: State) -> dict:
-    update_job(state["job_id"], stage="planning", progress=50)
-    return orchestator_node(state)
-
-
-def _worker(payload: dict) -> dict:
-    # Multiple workers may run in parallel; this update is idempotent.
-    update_job(payload["job_id"], stage="writing", progress=65)
-    return worker_node(payload)
-
-
-def _reducer(state: State) -> dict:
-    update_job(state["job_id"], stage="finalizing", progress=90)
-    return reducer_node(state)
-
-
-# ═══════════════════════════════════════════════════════════════════════════
-# Build and compile the graph ONCE at module load
-# ═══════════════════════════════════════════════════════════════════════════
-
-
-def _build_graph():
     g = StateGraph(State)
     g.add_node("router", _router)
     g.add_node("research", _research)
@@ -664,14 +724,37 @@ def _build_graph():
     return g.compile()
 
 
-# Module-level singleton — reused for every generate_blog() call
+# Legacy wrappers and default module-level graph
+def router_node(state: State) -> dict:
+    return execute_router(state, llm)
+
+
+def research_node(state: State) -> dict:
+    return execute_research(state, llm)
+
+
+def orchestator_node(state: State) -> dict:
+    return execute_orchestrator(state, llm)
+
+
+def worker_node(payload: dict) -> dict:
+    return execute_worker(payload, llm, _WORKER_SEMAPHORE)
+
+
+def reducer_node(state: State) -> dict:
+    return execute_reducer(state)
+
+
+def _build_graph():
+    return _build_workflow(llm, _WORKER_SEMAPHORE)
+
+
 _compiled_graph = _build_graph()
 
 
 # ═══════════════════════════════════════════════════════════════════════════
 # Public entry point
 # ═══════════════════════════════════════════════════════════════════════════
-
 
 def generate_blog(
     job_id: str,
@@ -682,19 +765,34 @@ def generate_blog(
     audience: str = "developers",
     use_web: bool = True,
     as_of: Optional[str] = None,
+    llm_selection: Optional[LLMSelection] = None,
 ) -> None:
     """
     Run the full blog-generation pipeline.
 
-    Invokes the compiled LangGraph graph with the given parameters,
-    updates the job store at each stage, and stores the final result
-    (or error) when complete.
+    Invokes the dynamically compiled LangGraph graph with the given parameters and LLM selection,
+    updates the job store at each stage, and stores the final result (or scrubbed error) when complete.
     """
     if as_of is None:
         as_of = date.today().isoformat()
 
+    raw_key = (
+        llm_selection.api_key.get_secret_value()
+        if (llm_selection and llm_selection.api_key)
+        else None
+    )
+    keys_to_scrub = [raw_key] if raw_key else []
+
     try:
-        out = _compiled_graph.invoke(
+        provider = (llm_selection.provider or "groq").strip().lower() if llm_selection else "groq"
+        provider_cfg = PROVIDER_REGISTRY.get(provider, PROVIDER_REGISTRY["groq"])
+        concurrency = provider_cfg["profile"].get("worker_concurrency", 3)
+        worker_semaphore = threading.Semaphore(concurrency)
+
+        active_llm = get_llm("blog", llm_selection)
+        graph = _build_workflow(active_llm, worker_semaphore, keys_to_scrub=keys_to_scrub)
+
+        out = graph.invoke(
             {
                 "topic": topic,
                 "tone": tone,
@@ -727,5 +825,7 @@ def generate_blog(
         update_job(job_id, status="done", stage="done", progress=100, result=result)
 
     except Exception as exc:
-        update_job(job_id, status="error", stage="error", error=str(exc))
-        raise
+        scrubbed = scrub_exception_chain(exc, keys=keys_to_scrub)
+        logger.error("Blog generation failed for job %s: %s", job_id, scrubbed)
+        update_job(job_id, status="error", stage="error", error=scrubbed)
+        raise RuntimeError(scrubbed) from None

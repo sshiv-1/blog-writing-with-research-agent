@@ -1,29 +1,35 @@
 from __future__ import annotations
 
 import os
+from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from .api.routes import router
+from .core.db import cleanup_stale_jobs_on_startup
+from .core.llm import scrub_exception_chain
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Application lifespan: clean up stale jobs on startup."""
+    cleanup_stale_jobs_on_startup()
+    yield
+
 
 app = FastAPI(
-    title="Blog Writing Agent API",
-    description="AI-powered technical blog generator backed by LangGraph + Groq.",
+    title="SAGE API",
+    description="AI-powered research and writing studio backed by LangGraph + Groq with BYOK and Supabase persistence.",
     version="1.0.0",
     docs_url="/docs",
     redoc_url="/redoc",
+    lifespan=lifespan,
 )
 
 # ---------------------------------------------------------------------------
 # CORS
-# ---------------------------------------------------------------------------
-# In development, defaults to localhost only.
-# In production (Render), set the ALLOWED_ORIGINS environment variable to
-# your Vercel URL, e.g.:
-#   ALLOWED_ORIGINS=https://your-app.vercel.app,https://your-custom-domain.com
-#
-# Multiple origins are comma-separated. No trailing slashes.
 # ---------------------------------------------------------------------------
 _raw_origins = os.getenv(
     "ALLOWED_ORIGINS",
@@ -36,8 +42,27 @@ app.add_middleware(
     allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
-    allow_headers=["*"],
+    allow_headers=[
+        "*",
+        "Authorization",
+        "X-LLM-Provider",
+        "X-LLM-Model",
+        "X-LLM-Key",
+        "X-LLM-Slides-Provider",
+        "X-LLM-Slides-Model",
+    ],
 )
+
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    """Global exception handler ensuring unhandled exceptions never expose secrets or headers."""
+    scrubbed = scrub_exception_chain(exc)
+    return JSONResponse(
+        status_code=500,
+        content={"detail": scrubbed or "Internal server error"},
+    )
+
 
 app.include_router(router)
 

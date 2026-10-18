@@ -13,9 +13,16 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from .agent import retry_on_rate_limit
 from .jobs import get_job, get_slide_job, update_slide_job
-from .llm import slides_llm
+from .llm import (
+    PROVIDER_REGISTRY,
+    get_llm,
+    scrub_exception_chain,
+    scrub_secrets,
+    slides_llm,
+)
 from ..models.schemas import (
     BlogResult,
+    LLMSelection,
     Slide,
     SlideBlock,
     SlideCode,
@@ -108,10 +115,17 @@ def format_short_error(err: Exception) -> str:
     return msg[:300].strip()
 
 
-def _extract_compact_blog_context(blog: BlogResult, max_chars: int = 18000) -> str:
+def _extract_compact_blog_context(
+    blog: BlogResult,
+    planner_input_token_cap: Optional[int] = 6000,
+) -> str:
     """
-    Extract headings plus the first ~600 characters of each section,
-    capped at roughly 6k tokens (~18k-24k chars) to stay safely under Groq TPM limits.
+    Extract blog context for slide planning.
+    - If planner_input_token_cap is set (e.g. 6000 for Groq):
+      Extract headings + first ~600 chars of each section, capped at token_cap * 3 chars (~18k).
+    - If planner_input_token_cap is None (frontier providers):
+      Whole article with a hard ceiling of ~60k tokens (~240,000 chars).
+      If draft exceeds 240,000 chars, truncate section bodies evenly.
     """
     lines = [f"# Title: {blog.title}\n"]
     if blog.outline:
@@ -125,21 +139,39 @@ def _extract_compact_blog_context(blog: BlogResult, max_chars: int = 18000) -> s
         lines.append("\n## Content Excerpts:\n")
 
     draft = blog.draft or ""
-    # Split draft into markdown sections
     sections = re.split(r"(?m)^(?=#{1,3}\s+)", draft)
-    accumulated_chars = 0
-    for sec in sections:
-        sec = sec.strip()
-        if not sec:
-            continue
-        first_600 = sec[:600]
-        if len(sec) > 600:
-            first_600 += "..."
-        lines.append(first_600 + "\n")
-        accumulated_chars += len(first_600)
-        if accumulated_chars >= max_chars:
-            lines.append("\n[Remaining content truncated for brevity]")
-            break
+    sections = [s.strip() for s in sections if s.strip()]
+
+    # Case 1: Cap is specified (e.g. Groq 6000 tokens -> ~18,000 chars)
+    if planner_input_token_cap is not None:
+        max_chars = planner_input_token_cap * 3
+        accumulated_chars = 0
+        for sec in sections:
+            first_600 = sec[:600]
+            if len(sec) > 600:
+                first_600 += "..."
+            lines.append(first_600 + "\n")
+            accumulated_chars += len(first_600)
+            if accumulated_chars >= max_chars:
+                lines.append("\n[Remaining content truncated for brevity]")
+                break
+        return "\n".join(lines)
+
+    # Case 2: Frontier models (whole article up to 60k tokens ceiling ~ 240,000 chars)
+    HARD_CEILING_CHARS = 240000
+    total_draft_len = sum(len(s) for s in sections)
+    if total_draft_len <= HARD_CEILING_CHARS:
+        for sec in sections:
+            lines.append(sec + "\n")
+    else:
+        # Truncate section bodies evenly across all sections
+        num_sections = max(1, len(sections))
+        per_sec_cap = HARD_CEILING_CHARS // num_sections
+        for sec in sections:
+            if len(sec) > per_sec_cap:
+                lines.append(sec[:per_sec_cap] + "...\n")
+            else:
+                lines.append(sec + "\n")
 
     return "\n".join(lines)
 
@@ -153,15 +185,27 @@ def plan_slides_deck(
     blog: BlogResult,
     slide_count: int = 10,
     audience: Optional[str] = None,
+    llm: Optional[Any] = None,
+    planner_input_token_cap: Optional[int] = 6000,
+    keys_to_scrub: Optional[list[str]] = None,
 ) -> SlideDeck:
     """
-    Generate a SlideDeck from a blog using slides_llm with json_mode.
+    Generate a SlideDeck from a blog using the active LLM with json_mode.
     Parses raw text, strips fences, validates through tolerant SlideDeck schema.
     If parsing/validation fails, performs ONE repair call with problem summary.
     """
-    llm = slides_llm()
-    json_llm = llm.bind(response_format={"type": "json_object"})
-    compact_context = _extract_compact_blog_context(blog)
+    if llm is None:
+        llm = slides_llm()
+
+    # Bind json_mode if supported, otherwise rely on system prompt JSON instruction
+    try:
+        json_llm = llm.bind(response_format={"type": "json_object"})
+    except Exception:
+        json_llm = llm
+
+    compact_context = _extract_compact_blog_context(
+        blog, planner_input_token_cap=planner_input_token_cap
+    )
 
     aud_prompt = f"Target audience: {audience}" if audience else "Target audience: developers and engineers"
     user_prompt = (
@@ -185,9 +229,12 @@ def plan_slides_deck(
         return SlideDeck.model_validate(data)
     except Exception as e:
         last_err = e
-        logger.warning("First SlideDeck JSON parse/validation failed: %s", e)
+        logger.warning(
+            "First SlideDeck JSON parse/validation failed: %s",
+            scrub_secrets(str(e), keys=keys_to_scrub),
+        )
 
-    # ONE repair call to slides_llm()
+    # ONE repair call
     prob_summary = _format_validation_summary(last_err)
     repair_prompt = (
         f"The previous JSON failed validation with the following problems:\n"
@@ -206,9 +253,13 @@ def plan_slides_deck(
         repair_data = json.loads(repair_cleaned)
         return SlideDeck.model_validate(repair_data)
     except Exception as e:
-        logger.error("SlideDeck repair attempt failed: %s", e)
+        logger.error(
+            "SlideDeck repair attempt failed: %s",
+            scrub_secrets(str(e), keys=keys_to_scrub),
+        )
         short_err = format_short_error(e)
-        raise ValueError(short_err) from None
+        scrubbed = scrub_secrets(short_err, keys=keys_to_scrub)
+        raise ValueError(scrubbed) from None
 
 
 # ---------------------------------------------------------------------------
@@ -345,20 +396,34 @@ def repair_slide_deck_deterministic(deck: SlideDeck, requested_count: int = 10) 
 
 
 @retry_on_rate_limit(max_retries=2, initial_backoff=2.0)
-def repair_single_slide_with_llm(slide: Slide, problem: str) -> Slide:
-    """Ask slides_llm to repair a single slide with a local issue."""
-    llm = slides_llm()
-    structured_llm = llm.with_structured_output(Slide, method="json_mode")
+def repair_single_slide_with_llm(
+    slide: Slide,
+    problem: str,
+    llm: Optional[Any] = None,
+    keys_to_scrub: Optional[list[str]] = None,
+) -> Slide:
+    """Ask active LLM to repair a single slide with a local issue."""
+    if llm is None:
+        llm = slides_llm()
     prompt = (
         f"The following slide has an issue:\n"
         f"Problem: {problem}\n"
         f"Current slide JSON:\n{slide.model_dump_json(indent=2)}\n\n"
         "Please fix the slide to strictly adhere to the schema and requirements. Return valid JSON only."
     )
-    return structured_llm.invoke([
+    messages = [
         {"role": "system", "content": SLIDES_SYSTEM},
         {"role": "user", "content": prompt},
-    ])
+    ]
+    try:
+        structured_llm = llm.with_structured_output(Slide, method="json_mode")
+        return structured_llm.invoke(messages)
+    except Exception:
+        resp = llm.invoke(messages)
+        raw = str(resp.content if hasattr(resp, "content") else resp)
+        cleaned = _clean_json_text(raw)
+        data = json.loads(cleaned)
+        return Slide.model_validate(data)
 
 
 # ---------------------------------------------------------------------------
@@ -1315,16 +1380,24 @@ def generate_slides_for_blog(
     job_id: str,
     slide_count: int = 10,
     audience: Optional[str] = None,
+    llm_selection: Optional[LLMSelection] = None,
 ) -> None:
     """
     Main background pipeline:
     1. Validate blog job is done
-    2. Plan SlideDeck JSON via slides_llm (stage: planning, 10-30%)
+    2. Plan SlideDeck JSON via active LLM (stage: planning, 10-30%)
     3. Lint & deterministic repair (stage: planning, 40%)
     4. Render PPTX (stage: writing_latex, 60%)
     5. Render Beamer & compile PDF with repair loop (stage: compiling, 85%)
     6. Store artifacts in job record (stage: done, 100%)
     """
+    raw_key = (
+        llm_selection.api_key.get_secret_value()
+        if (llm_selection and llm_selection.api_key)
+        else None
+    )
+    keys_to_scrub = [raw_key] if raw_key else []
+
     blog_job = get_job(job_id)
     if not blog_job or not blog_job.result:
         update_slide_job(
@@ -1356,17 +1429,37 @@ def generate_slides_for_blog(
 
     warnings: List[str] = []
 
+    # Resolve active LLM & planner input cap
+    provider = (llm_selection.provider or "groq").strip().lower() if llm_selection else "groq"
+    provider_cfg = PROVIDER_REGISTRY.get(provider, PROVIDER_REGISTRY["groq"])
+    token_cap = provider_cfg["profile"].get("planner_input_token_cap")
+
+    try:
+        active_llm = get_llm("slides", llm_selection)
+    except Exception as exc:
+        scrubbed = scrub_exception_chain(exc, keys=keys_to_scrub)
+        logger.error("Failed to initialize slides LLM: %s", scrubbed)
+        update_slide_job(job_id, status="error", stage="planning", error=scrubbed)
+        return
+
     # 1. Plan deck
     try:
-        deck = plan_slides_deck(blog_result, slide_count=slide_count, audience=audience)
+        deck = plan_slides_deck(
+            blog_result,
+            slide_count=slide_count,
+            audience=audience,
+            llm=active_llm,
+            planner_input_token_cap=token_cap,
+            keys_to_scrub=keys_to_scrub,
+        )
     except Exception as e:
-        logger.error("Slide planning failed: %s", e)
-        short_err = format_short_error(e)
+        scrubbed = scrub_exception_chain(e, keys=keys_to_scrub)
+        logger.error("Slide planning failed: %s", scrubbed)
         update_slide_job(
             job_id,
             status="error",
             stage="planning",
-            error=short_err,
+            error=scrubbed,
         )
         return
 

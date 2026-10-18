@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import operator
 import re
+from datetime import datetime
 from typing import Annotated, Any, List, Literal, Optional, TypedDict
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, SecretStr, field_validator, model_validator
 
 
 # ---------------------------------------------------------------------------
@@ -135,6 +136,27 @@ class BlogResult(BaseModel):
     outline: List[dict]
     draft: str
     sources: List[dict]
+
+
+class LLMSelection(BaseModel):
+    provider: str = "groq"
+    model: Optional[str] = None
+    api_key: Optional[SecretStr] = Field(default=None, repr=False)
+
+    model_config = ConfigDict(extra="ignore")
+
+    def __repr__(self) -> str:
+        return f"LLMSelection(provider={self.provider!r}, model={self.model!r}, api_key=***)"
+
+    def __str__(self) -> str:
+        return self.__repr__()
+
+
+class LLMTestResponse(BaseModel):
+    ok: bool
+    provider: str
+    model: str
+    error: Optional[str] = None
 
 
 # ---------------------------------------------------------------------------
@@ -463,4 +485,36 @@ class SlideJobStatusResponse(BaseModel):
     slide_count: Optional[int] = None
     warnings: List[str] = Field(default_factory=list)
     error: Optional[str] = None
+
+
+# ---------------------------------------------------------------------------
+# Phase 3b: User Job History & Saved Key Schemas
+# ---------------------------------------------------------------------------
+
+
+class UserJobSummary(BaseModel):
+    job_id: str
+    topic: str
+    status: str
+    stage: str
+    progress: int
+    created_at: datetime
+    has_slides: bool = False
+
+
+class PaginatedUserJobs(BaseModel):
+    items: List[UserJobSummary]
+    total: int
+    limit: int
+    offset: int
+
+
+class UserKeyItem(BaseModel):
+    provider: str
+    last4: str
+    created_at: Optional[datetime] = None
+
+
+class SaveKeyRequest(BaseModel):
+    api_key: str = Field(..., max_length=512)
 

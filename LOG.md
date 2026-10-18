@@ -260,5 +260,110 @@
   - Grep for `odis` across repository (excluding LOG.md): **0 occurrences found**.
   - Background processes: **None**.
 
+---
+
+## Phase 3a: Bring-Your-Own-Key (BYOK) Model Layer
+
+### 2026-10-18 - Multi-Provider Registry, Secret Concealment, and Dynamic Concurrency
+- **Files Modified**:
+  - `backend/app/models/schemas.py`:
+    - Added `LLMSelection` with `api_key: Optional[SecretStr] = Field(default=None, repr=False)` and custom `__repr__`/`__str__` masking keys as `***`.
+    - Added `LLMTestResponse` (`ok`, `provider`, `model`, `error`).
+  - `backend/app/core/llm.py`:
+    - Centralized `PROVIDER_REGISTRY` covering 5 providers (`groq`, `openai`, `anthropic`, `google`, `openrouter`) with all model identifiers, defaults (`blog`, `slides`, `test`), recommended models, base URL allowlists, and execution profiles (`planner_input_token_cap`, `worker_concurrency`, `max_output_tokens_*`).
+    - Added provider and model string validators (`validate_provider`, `validate_model_name`).
+    - Added security sanitizers (`scrub_secrets`, `scrub_exception_chain`) stripping API key patterns (`sk-...`, `sk-ant-...`, `sk-or-...`, `gsk_...`, `AIza...`) and exception cause chains (`__cause__`, `__context__`).
+    - Implemented in-memory sliding window IP rate limiting (`check_ip_rate_limit`) allowing max 10 test probes/min.
+    - Implemented `get_llm(role, selection, override_options)` with lazy imports and fallback to server Groq keys only when no provider and no key are specified.
+    - Retained `blog_llm()` and `slides_llm()` as backward-compatibility aliases.
+  - `backend/app/core/agent.py`:
+    - Replaced module-level static LLM instantiation with `_LazyBlogLLM()` proxy.
+    - Added `invoke_structured()` wrapper trying `with_structured_output()` first and falling back to prompt JSON schema validation.
+    - Parameterized pipeline graph creation via `_build_workflow()` with closures capturing the active LLM, dynamic worker concurrency semaphore, and secret scrubber.
+    - Updated `generate_blog()` to accept `llm_selection: Optional[LLMSelection] = None`, dynamically size the worker semaphore, and scrub all exceptions before updating `JobRecord`.
+  - `backend/app/core/slides.py`:
+    - Updated `_extract_compact_blog_context()` to accept dynamic `planner_input_token_cap`: finite caps apply the ~600-char/section window, while frontier providers (None) include the whole article subject to a hard ceiling of 60k tokens (~240,000 characters) with even section truncation.
+    - Updated `plan_slides_deck()` and `repair_single_slide_with_llm()` to accept `llm`, `planner_input_token_cap`, and scrub keys from warnings and errors.
+    - Updated `generate_slides_for_blog()` to accept `llm_selection: Optional[LLMSelection] = None`.
+  - `backend/app/api/routes.py`:
+    - Added `_resolve_selection()` parsing headers (`X-LLM-Provider`, `X-LLM-Model`, `X-LLM-Key`, `X-LLM-Slides-Provider`, `X-LLM-Slides-Model`). Non-Groq providers without keys strictly return HTTP 400.
+    - Passed resolved selection into background tasks for `POST /generate` and `POST /jobs/{id}/slides`.
+    - Added `POST /llm/test` probe endpoint with client IP rate limiting and parameter-rejection retry.
+  - `backend/app/main.py`:
+    - Allowed custom `X-LLM-*` headers in CORS middleware.
+    - Added global exception handler ensuring unhandled 500 exceptions never echo request headers or secrets.
+  - `backend/requirements.txt`:
+    - Added `langchain-openai>=0.2.0`, `langchain-anthropic>=0.2.0`, `langchain-google-genai>=2.0.0`.
+- **Verification Results**:
+  - `pip install --dry-run`: **PASS** (zero dependency conflicts with pinned `langchain==1.3.14` and `langchain-core==1.5.3`).
+  - `python -c "import app.main"`: **PASS** (exited with code 0).
+  - Mocked offline test script: **PASS** (all 5 checks verified):
+    - Provider routing: all 5 providers correctly dispatched.
+    - Unknown provider rejected with `ValueError`.
+    - Base URL hijacking ignored; allowlist URLs enforced.
+    - Non-Groq providers without keys strictly raise HTTP 400.
+    - Key scrubbing: `"sk-TEST-123"` never appeared in `repr()`/`str()` of `LLMSelection`, `JobRecord`, `SlideJobRecord`, or exception chains (`__cause__`/`__context__`).
+  - Background processes: **None**.
+
+---
+
+## Phase 3b: Supabase Persistence + Optional Auth
+
+### 2026-10-18 - Supabase Persistence, Algorithm-Pinned JWT Auth, Fernet BYOK Encryption, and Owner Isolation
+- **Files Created**:
+  - `supabase/schema.sql`:
+    - Idempotent schema defining `jobs` (uuid pk), `slide_jobs` (uuid pk referencing `jobs(id)` on delete cascade), and `user_api_keys` (composite pk `user_id, provider`).
+    - Added index on `jobs(user_id, created_at desc)` and `slide_jobs(user_id, created_at desc)`.
+    - RLS enabled across all three tables. SELECT-only policy for authenticated users (`auth.uid() = user_id`) on `jobs` and `slide_jobs`. Zero access policies for authenticated users on `user_api_keys` (reserved exclusively for service role).
+    - Private `artifacts` bucket configured with zero direct authenticated user access policies (streamed by backend).
+  - `backend/app/core/crypto.py`:
+    - Symmetric Fernet cipher using `APP_ENCRYPTION_KEY`.
+    - Enforces 512 character maximum key length; extracts `last4` suffix for UI display.
+    - Clears plaintext keys from local execution scope before returning.
+    - Explicit `RuntimeError` diagnostic instructing how to generate 32-byte key if unset or invalid.
+  - `backend/app/core/auth.py`:
+    - `verify_supabase_jwt(token)` enforcing audience `"authenticated"` and issuer `"{SUPABASE_URL}/auth/v1"`.
+    - Strict algorithm pinning: rejects `"none"` and unpinned algorithms; allows `HS256` only when `SUPABASE_JWT_SECRET` is set and token header specifies `HS256`; allows `RS256`, `ES256`, `EdDSA` via cached JWKS discovery client.
+    - Sync FastAPI dependencies `get_current_user` (returns 401 on missing/invalid token) and `get_optional_user` (returns None for guests; 401 on invalid/expired credentials). Returns 401 if `SUPABASE_URL` is unset when a token is provided.
+  - `backend/app/core/db.py`:
+    - Supabase singleton client using `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`. Falls back to in-memory guest mode if unconfigured.
+    - Startup stale job cleanup (`cleanup_stale_jobs_on_startup`) and read-time stale evaluation: marks queued/running jobs older than 15 minutes as error (`"Interrupted by a server restart"`).
+    - CRUD helpers: `save_job_db`, `get_job_db`, `list_user_jobs_db`, `count_user_active_jobs_db`, `count_user_daily_jobs_db`, `delete_job_db`, `save_slide_job_db` (storing `slide_count`, `warnings`, `deck`, `title` inside `result`), `get_slide_job_db`, `save_user_key_db`, `get_user_key_db`, `list_user_keys_db`, `delete_user_key_db`, `upload_artifact_storage`, `get_artifact_storage`.
+    - All DB/storage errors trapped, sanitized via `scrub_exception_chain`, and logged as warnings without interrupting in-memory job workflows.
+- **Files Modified**:
+  - `backend/app/core/jobs.py`:
+    - Added `user_id`, `topic`, and non-secret `params` to `JobRecord`.
+    - Added `user_id` to `SlideJobRecord`.
+    - Threaded non-blocking write-through to DB triggered on stage changes and done/error transitions, avoiding database writes on intermediate progress ticks.
+    - Lazy artifact upload to private storage bucket on slide job completion.
+    - Cache-miss fallback to DB on `get_job()` and `get_slide_job()`.
+  - `backend/app/api/routes.py`:
+    - Integrated `get_optional_user` and `get_current_user`.
+    - Updated `_resolve_selection` to resolve saved encrypted keys from `user_api_keys` when `X-LLM-Key` header is omitted for authenticated users.
+    - Added abuse controls: sliding-window IP rate limiting (`GUEST_JOBS_PER_HOUR`, default 20), signed-in concurrent job cap (`MAX_CONCURRENT_USER_JOBS`, default 3), and daily user cap (`DAILY_USER_JOB_CAP`, default 50).
+    - Enforced owner isolation on `GET /jobs/{id}`, `GET /jobs/{id}/result`, `GET /jobs/{id}/slides`, and `GET /jobs/{id}/slides/download`: mismatched or unauthenticated requests to user-owned jobs return 404 Not Found to prevent ID enumeration.
+    - Added authenticated endpoints: `GET /me/jobs`, `DELETE /jobs/{id}`, `GET /me/keys`, `PUT /me/keys/{provider}`, `DELETE /me/keys/{provider}`.
+  - `backend/app/main.py`:
+    - Added FastAPI lifespan hook triggering `cleanup_stale_jobs_on_startup()`.
+    - Explicitly exposed `Authorization` in CORS allowed headers.
+  - `backend/app/models/schemas.py`:
+    - Added `UserJobSummary`, `PaginatedUserJobs`, `UserKeyItem`, and `SaveKeyRequest`.
+  - `backend/.env.example`:
+    - Added placeholders for `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_JWT_SECRET`, `APP_ENCRYPTION_KEY`, `GUEST_JOBS_PER_HOUR`, `DAILY_USER_JOB_CAP`, and `MAX_CONCURRENT_USER_JOBS`.
+  - `backend/requirements.txt`:
+    - Added `supabase>=2.0.0` and `PyJWT[crypto]>=2.8.0`.
+- **Verification Results**:
+  - `python -c "import app.main"`: **PASS** (exited with code 0).
+  - Offline test suite: **PASS** (7/7 tests passed):
+    - Test 1 (Fernet Crypto): encryption, decryption, `last4` extraction, and missing key `RuntimeError`.
+    - Test 2 (JWT & Algorithm Pinning): valid token decodes `AuthUser`, rejects `"none"`, wrong alg, wrong issuer, wrong audience, expired token, and unset `SUPABASE_URL` with 401.
+    - Test 3 (Stale Jobs): queued/running jobs >15m marked failed with `"Interrupted by a server restart"`.
+    - Test 4 (Resilient Write-Through): simulated DB timeouts/failures do not fail in-memory jobs.
+    - Test 5 (Guest Behavior): unauthenticated requests run in-memory; unconfigured Supabase degrades gracefully.
+    - Test 6 (Access Isolation): cross-user or anonymous access to user-owned jobs returns 404 (not 403).
+    - Test 7 (Saved BYOK Resolution): decrypted key passed as `SecretStr`, concealed in `repr()`/`str()`.
+  - Leftover test files: **None** (cleaned up).
+  - Background processes: **None**.
+
 
 
