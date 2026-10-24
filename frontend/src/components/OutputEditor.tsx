@@ -82,7 +82,7 @@ export default function OutputEditor({ result }: Props) {
         {/* Metadata + actions */}
         <div className="flex items-center gap-3">
           {/* Metadata */}
-          <div className="hidden sm:flex items-center gap-3 text-xs" style={{ color: 'var(--color-ink-4)' }}>
+          <div className="hidden sm:flex items-center gap-3 text-xs" style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-ink-4)', letterSpacing: '0.02em' }}>
             <span>~{wordCount.toLocaleString()} words</span>
             <span
               className="w-0.5 h-3"
@@ -167,7 +167,7 @@ export default function OutputEditor({ result }: Props) {
               spellCheck={false}
               placeholder="Edit the Markdown directly…"
             />
-            <p className="text-xs mt-2" style={{ color: 'var(--color-ink-4)' }}>
+            <p className="text-xs mt-2" style={{ fontFamily: 'var(--font-body)', color: 'var(--color-ink-4)' }}>
               Edit Markdown directly. Switch to Preview to see rendered output.
             </p>
           </div>

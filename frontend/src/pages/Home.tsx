@@ -23,16 +23,23 @@ export default function Home() {
             {/* ── Left: intro copy & features ── */}
             <div className="pt-2 lg:pt-4">
               <h1
-                className="text-[2.375rem] sm:text-[3rem] lg:text-[3.25rem] font-bold leading-[1.08] mb-5"
-                style={{ color: 'var(--color-ink)', letterSpacing: '-0.038em' }}
+                className="text-[2.75rem] sm:text-[3.5rem] lg:text-[4.25rem] font-light leading-[1.02] mb-5 tracking-tight"
+                style={{
+                  fontFamily: 'var(--font-display)',
+                  color: 'var(--color-ink)',
+                  letterSpacing: '-0.015em',
+                }}
               >
                 Research it. Write it.
                 <span
                   style={{
                     display: 'block',
-                    color: 'var(--color-ink-3)',
+                    fontFamily: 'var(--font-editorial)',
+                    fontStyle: 'italic',
                     fontWeight: 400,
-                    marginTop: '0.1em',
+                    color: 'var(--color-ink-3)',
+                    marginTop: '0.12em',
+                    letterSpacing: '-0.01em',
                   }}
                 >
                   Present it.
@@ -41,7 +48,12 @@ export default function Home() {
 
               <p
                 className="text-base leading-relaxed mb-6 max-w-[50ch]"
-                style={{ color: 'var(--color-ink-3)', fontSize: '1.0625rem' }}
+                style={{
+                  fontFamily: 'var(--font-body)',
+                  color: 'var(--color-ink-3)',
+                  fontSize: '1.0625rem',
+                  lineHeight: 1.65,
+                }}
               >
                 Give SAGE a topic. It researches the web, plans an outline, drafts every section in parallel, and delivers a cited article. Then turn that article into a lecture-style slide deck with one click: a PDF and an editable PowerPoint.
               </p>
@@ -58,6 +70,7 @@ export default function Home() {
                     key={label}
                     className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 transition-colors hover:border-[var(--color-border-strong)] cursor-default"
                     style={{
+                      fontFamily: 'var(--font-ui)',
                       background: 'var(--color-surface)',
                       border: '1px solid var(--color-border)',
                       color: 'var(--color-ink-3)',
@@ -65,7 +78,7 @@ export default function Home() {
                     }}
                   >
                     {label}
-                    <span style={{ color: 'var(--color-ink-4)', fontWeight: 400 }}>· {detail}</span>
+                    <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-ink-4)', fontWeight: 400 }}>· {detail}</span>
                   </span>
                 ))}
               </div>
@@ -73,8 +86,12 @@ export default function Home() {
               {/* Compact "How it works" strip */}
               <div className="mb-8">
                 <p
-                  className="text-[11px] font-semibold uppercase tracking-wider mb-3"
-                  style={{ color: 'var(--color-ink-4)', letterSpacing: '0.08em' }}
+                  className="text-[11px] font-medium uppercase mb-3"
+                  style={{
+                    fontFamily: 'var(--font-mono)',
+                    color: 'var(--color-ink-4)',
+                    letterSpacing: '0.08em',
+                  }}
                 >
                   How it works
                 </p>
@@ -97,6 +114,7 @@ export default function Home() {
                       <span
                         className="flex-shrink-0 w-5 h-5 flex items-center justify-center text-[11px] font-semibold"
                         style={{
+                          fontFamily: 'var(--font-mono)',
                           borderRadius: '3px',
                           background: 'var(--color-elevated)',
                           color: 'var(--color-accent)',
@@ -106,10 +124,10 @@ export default function Home() {
                         {step}
                       </span>
                       <div className="min-w-0">
-                        <p className="text-xs font-semibold leading-none mb-1" style={{ color: 'var(--color-ink)' }}>
+                        <p className="text-xs font-semibold leading-none mb-1" style={{ fontFamily: 'var(--font-ui)', color: 'var(--color-ink)' }}>
                           {title}
                         </p>
-                        <p className="text-[11px] leading-snug" style={{ color: 'var(--color-ink-3)' }}>
+                        <p className="text-[11px] leading-snug" style={{ fontFamily: 'var(--font-body)', color: 'var(--color-ink-3)' }}>
                           {desc}
                         </p>
                       </div>
@@ -134,8 +152,8 @@ export default function Home() {
                     className="px-3 py-1.5 flex items-center justify-between"
                     style={{ background: '#272A40' }}
                   >
-                    <span className="text-[10px] font-semibold text-white tracking-tight">Key Insight</span>
-                    <span className="text-[8px] text-[#DCEEEE] font-mono">03 / 10</span>
+                    <span className="text-[10px] font-medium text-white tracking-tight" style={{ fontFamily: 'var(--font-ui)' }}>Key Insight</span>
+                    <span className="text-[8px] text-[#DCEEEE]" style={{ fontFamily: 'var(--font-mono)' }}>03 / 10</span>
                   </div>
 
                   {/* Body with placeholder lines */}
@@ -150,8 +168,8 @@ export default function Home() {
                     className="px-3 py-0.5 flex items-center justify-between text-[7px] text-white"
                     style={{ background: '#272A40' }}
                   >
-                    <span className="font-semibold">SAGE</span>
-                    <span className="opacity-80">Lecture Series</span>
+                    <span className="font-semibold" style={{ fontFamily: 'var(--font-ui)' }}>SAGE</span>
+                    <span className="opacity-80" style={{ fontFamily: 'var(--font-mono)' }}>Lecture Series</span>
                   </div>
                 </div>
               </div>
@@ -159,7 +177,12 @@ export default function Home() {
               {/* Footer note — visible on desktop */}
               <p
                 className="text-xs hidden lg:block"
-                style={{ color: 'var(--color-ink-4)', marginTop: '1.5rem' }}
+                style={{
+                  fontFamily: 'var(--font-mono)',
+                  color: 'var(--color-ink-4)',
+                  marginTop: '1.5rem',
+                  letterSpacing: '0.02em',
+                }}
               >
                 Powered by LangGraph + Groq · Tavily web search
               </p>
@@ -181,8 +204,9 @@ export default function Home() {
                 style={{ borderBottom: '1px solid var(--color-border)' }}
               >
                 <p
-                  className="text-xs font-semibold uppercase"
+                  className="text-xs font-medium uppercase"
                   style={{
+                    fontFamily: 'var(--font-mono)',
                     color: 'var(--color-ink-4)',
                     letterSpacing: '0.09em',
                   }}
@@ -198,11 +222,12 @@ export default function Home() {
 
             {/* Guest note under form card */}
             {!user && isConfigured && (
-              <p className="text-center text-xs text-[var(--color-ink-3)] -mt-8 mb-4 lg:mb-0">
+              <p className="text-center text-xs text-[var(--color-ink-3)] -mt-8 mb-4 lg:mb-0" style={{ fontFamily: 'var(--font-body)' }}>
                 <button
                   type="button"
                   onClick={() => setIsSignInOpen(true)}
                   className="text-[var(--color-accent)] hover:underline font-medium cursor-pointer"
+                  style={{ fontFamily: 'var(--font-ui)' }}
                 >
                   Sign in
                 </button>{' '}
@@ -217,7 +242,11 @@ export default function Home() {
       {/* Mobile footer */}
       <p
         className="text-xs text-center pb-6 lg:hidden"
-        style={{ color: 'var(--color-ink-4)' }}
+        style={{
+          fontFamily: 'var(--font-mono)',
+          color: 'var(--color-ink-4)',
+          letterSpacing: '0.02em',
+        }}
       >
         Powered by LangGraph + Groq · Tavily web search
       </p>

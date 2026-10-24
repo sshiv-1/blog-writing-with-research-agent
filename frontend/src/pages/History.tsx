@@ -99,28 +99,28 @@ export default function History() {
     switch (status) {
       case 'done':
         return (
-          <span className="inline-flex items-center gap-1 text-[0.6875rem] font-semibold px-2 py-0.5 rounded-full bg-[var(--color-success-bg)] text-[var(--color-success)] border border-[var(--color-success)]/20">
+          <span style={{ fontFamily: 'var(--font-mono)', letterSpacing: '0.02em' }} className="inline-flex items-center gap-1 text-[0.6875rem] font-semibold px-2 py-0.5 rounded-full bg-[var(--color-success-bg)] text-[var(--color-success)] border border-[var(--color-success)]/20">
             <CheckCircle2 className="w-3 h-3" />
             Completed
           </span>
         )
       case 'running':
         return (
-          <span className="inline-flex items-center gap-1 text-[0.6875rem] font-semibold px-2 py-0.5 rounded-full bg-[var(--color-accent-muted)] text-[var(--color-accent)] border border-[var(--color-accent)]/20 animate-pulse">
+          <span style={{ fontFamily: 'var(--font-mono)', letterSpacing: '0.02em' }} className="inline-flex items-center gap-1 text-[0.6875rem] font-semibold px-2 py-0.5 rounded-full bg-[var(--color-accent-muted)] text-[var(--color-accent)] border border-[var(--color-accent)]/20 animate-pulse">
             <Loader2 className="w-3 h-3 animate-spin" />
             In progress
           </span>
         )
       case 'error':
         return (
-          <span className="inline-flex items-center gap-1 text-[0.6875rem] font-semibold px-2 py-0.5 rounded-full bg-[var(--color-error-bg)] text-[var(--color-error)] border border-[var(--color-error)]/20">
+          <span style={{ fontFamily: 'var(--font-mono)', letterSpacing: '0.02em' }} className="inline-flex items-center gap-1 text-[0.6875rem] font-semibold px-2 py-0.5 rounded-full bg-[var(--color-error-bg)] text-[var(--color-error)] border border-[var(--color-error)]/20">
             <AlertCircle className="w-3 h-3" />
             Failed
           </span>
         )
       default:
         return (
-          <span className="inline-flex items-center gap-1 text-[0.6875rem] font-medium px-2 py-0.5 rounded-full bg-[var(--color-surface)] text-[var(--color-ink-3)] border border-[var(--color-border)]">
+          <span style={{ fontFamily: 'var(--font-mono)', letterSpacing: '0.02em' }} className="inline-flex items-center gap-1 text-[0.6875rem] font-medium px-2 py-0.5 rounded-full bg-[var(--color-surface)] text-[var(--color-ink-3)] border border-[var(--color-border)]">
             <Clock className="w-3 h-3" />
             Queued
           </span>
@@ -142,12 +142,12 @@ export default function History() {
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
             <div>
               <h1
-                className="text-2xl sm:text-3xl font-bold tracking-tight text-[var(--color-ink)]"
-                style={{ letterSpacing: '-0.025em' }}
+                className="text-2xl sm:text-3xl lg:text-4xl font-normal tracking-tight text-[var(--color-ink)]"
+                style={{ fontFamily: 'var(--font-display)', letterSpacing: '-0.015em' }}
               >
                 Article History
               </h1>
-              <p className="text-xs sm:text-sm text-[var(--color-ink-3)] mt-1">
+              <p className="text-xs sm:text-sm text-[var(--color-ink-3)] mt-1" style={{ fontFamily: 'var(--font-body)' }}>
                 Your past research projects and presentation decks.
               </p>
             </div>
@@ -265,7 +265,7 @@ export default function History() {
                             {item.topic || 'Untitled Article'}
                           </button>
                           {item.has_slides && (
-                            <span className="inline-flex items-center gap-1 text-[0.625rem] font-semibold px-2 py-0.5 rounded bg-[var(--color-surface)] text-[var(--color-ink-2)] border border-[var(--color-border)]">
+                            <span style={{ fontFamily: 'var(--font-mono)' }} className="inline-flex items-center gap-1 text-[0.625rem] font-semibold px-2 py-0.5 rounded bg-[var(--color-surface)] text-[var(--color-ink-2)] border border-[var(--color-border)]">
                               <Presentation className="w-3 h-3 text-[var(--color-accent)]" />
                               Slides ready
                             </span>
@@ -273,7 +273,7 @@ export default function History() {
                         </div>
 
                         <div className="flex items-center gap-3 text-xs text-[var(--color-ink-3)] flex-wrap">
-                          <span>{formatDate(item.created_at)}</span>
+                          <span style={{ fontFamily: 'var(--font-mono)' }}>{formatDate(item.created_at)}</span>
                           <span>·</span>
                           {getStatusBadge(item.status)}
                         </div>

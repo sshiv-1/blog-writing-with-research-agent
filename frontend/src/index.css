@@ -5,6 +5,22 @@
    The antithesis of AI-purple dark-mode SaaS.
    ──────────────────────────────────────────────────────────────────────── */
 
+@font-face {
+  font-family: "SF Mono";
+  src: url("./assets/SFMonoRegular.otf") format("opentype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  --font-display: "Alumni Sans", sans-serif;
+  --font-body: "Albert Sans", sans-serif;
+  --font-ui: "Instrument Sans", sans-serif;
+  --font-editorial: "Cormorant Garamond", serif;
+  --font-mono: "SF Mono", monospace;
+}
+
 @theme {
   /* Surfaces */
   --color-canvas:   #faf9f7;
@@ -38,9 +54,12 @@
   --color-progress:     #b5813a;
 
   /* Typography */
-  --font-sans:    'Inter', system-ui, -apple-system, sans-serif;
-  --font-mono:    'JetBrains Mono', ui-monospace, 'Cascadia Code', monospace;
-  --font-display: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-sans:      "Albert Sans", sans-serif;
+  --font-body:      "Albert Sans", sans-serif;
+  --font-ui:        "Instrument Sans", sans-serif;
+  --font-editorial: "Cormorant Garamond", serif;
+  --font-mono:      "SF Mono", monospace;
+  --font-display:   "Alumni Sans", sans-serif;
 
   /* Scale */
   --radius-sm:   0.25rem;
@@ -68,11 +87,29 @@ body {
   margin: 0;
   background: var(--color-canvas);
   color: var(--color-ink);
-  font-family: var(--font-sans);
+  font-family: var(--font-body);
   font-size: 1rem;
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* Ensure interactive UI controls inherit Instrument Sans consistently */
+button,
+input,
+optgroup,
+select,
+textarea,
+label {
+  font-family: var(--font-ui);
+}
+
+/* Technical code elements use SF Mono */
+code,
+kbd,
+samp,
+pre {
+  font-family: var(--font-mono);
 }
 
 #root {
@@ -100,6 +137,7 @@ body {
 
 /* ─── Prose / article rendering ─────────────────────────────────────────── */
 .article-prose {
+  font-family: var(--font-body);
   color: var(--color-ink-2);
   font-size: 1.0625rem;
   line-height: 1.78;
@@ -162,7 +200,9 @@ body {
   padding: 0.25rem 0 0.25rem 1.25rem;
   margin: 1.5rem 0;
   color: var(--color-ink-3);
+  font-family: var(--font-editorial);
   font-style: italic;
+  font-size: 1.125em;
 }
 .article-prose code {
   font-family: var(--font-mono);

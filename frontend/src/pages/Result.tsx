@@ -54,6 +54,8 @@ export default function Result() {
               className="flex items-center gap-1.5 text-xs font-medium px-2.5 py-1"
               style={{
                 borderRadius: '4px',
+                fontFamily: 'var(--font-mono)',
+                letterSpacing: '0.02em',
                 background: 'var(--color-success-bg)',
                 color: 'var(--color-success)',
                 border: '1px solid rgba(45,122,79,0.2)',
@@ -80,12 +82,12 @@ export default function Result() {
               {/* Heading */}
               <div className="mb-8 text-center">
                 <h1
-                  className="text-xl font-bold mb-2"
-                  style={{ color: 'var(--color-ink)', letterSpacing: '-0.025em' }}
+                  className="text-2xl font-normal mb-2"
+                  style={{ fontFamily: 'var(--font-display)', color: 'var(--color-ink)', letterSpacing: '-0.01em' }}
                 >
                   Generating your article
                 </h1>
-                <p className="text-sm" style={{ color: 'var(--color-ink-3)' }}>
+                <p className="text-sm" style={{ fontFamily: 'var(--font-body)', color: 'var(--color-ink-3)' }}>
                   This takes 30–90 seconds. The agent researches and writes in parallel.
                 </p>
               </div>
@@ -120,12 +122,12 @@ export default function Result() {
               <AlertCircle className="h-6 w-6" style={{ color: 'var(--color-error)' }} strokeWidth={1.5} />
             </div>
             <h2
-              className="text-lg font-bold mb-2"
-              style={{ color: 'var(--color-ink)', letterSpacing: '-0.02em' }}
+              className="text-xl sm:text-2xl font-normal mb-2"
+              style={{ fontFamily: 'var(--font-display)', color: 'var(--color-ink)', letterSpacing: '-0.01em' }}
             >
               {is404 ? 'Article not available' : 'Generation failed'}
             </h2>
-            <p className="text-sm max-w-[36ch] mb-6" style={{ color: 'var(--color-ink-3)' }}>
+            <p className="text-sm max-w-[36ch] mb-6" style={{ fontFamily: 'var(--font-body)', color: 'var(--color-ink-3)' }}>
               {is404
                 ? 'This article is no longer available or was created under another account.'
                 : error}
@@ -153,14 +155,14 @@ export default function Result() {
             {/* Article header */}
             <div className="mb-8">
               <p
-                className="text-xs font-semibold uppercase mb-3"
-                style={{ color: 'var(--color-accent)', letterSpacing: '0.1em' }}
+                className="text-xs font-medium uppercase mb-3"
+                style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-accent)', letterSpacing: '0.1em' }}
               >
                 Generated Article
               </p>
               <h1
-                className="text-2xl sm:text-3xl font-bold leading-tight mb-0"
-                style={{ color: 'var(--color-ink)', letterSpacing: '-0.03em' }}
+                className="text-2xl sm:text-3xl lg:text-4xl font-normal leading-[1.14] mb-0"
+                style={{ fontFamily: 'var(--font-display)', color: 'var(--color-ink)', letterSpacing: '-0.015em' }}
               >
                 {result.title}
               </h1>
@@ -168,7 +170,7 @@ export default function Result() {
               {/* Metadata strip */}
               <div
                 className="flex flex-wrap items-center gap-4 mt-4 pt-4"
-                style={{ borderTop: '1px solid var(--color-border)' }}
+                style={{ fontFamily: 'var(--font-mono)', borderTop: '1px solid var(--color-border)', letterSpacing: '0.02em' }}
               >
                 <span className="text-xs" style={{ color: 'var(--color-ink-4)' }}>
                   ~{result.draft.split(/\s+/).filter(Boolean).length.toLocaleString()} words

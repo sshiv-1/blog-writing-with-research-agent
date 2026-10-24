@@ -27,7 +27,7 @@ function FieldLabel({ children, htmlFor }: { children: React.ReactNode; htmlFor?
     <label
       htmlFor={htmlFor}
       className="block text-sm font-medium mb-1.5"
-      style={{ color: 'var(--color-ink-2)' }}
+      style={{ fontFamily: 'var(--font-ui)', color: 'var(--color-ink-2)' }}
     >
       {children}
     </label>
@@ -52,6 +52,7 @@ function SelectField({
       onChange={e => onChange(e.target.value)}
       className="w-full h-10 px-3 text-sm appearance-none cursor-pointer transition-colors"
       style={{
+        fontFamily: 'var(--font-ui)',
         borderRadius: R,
         background: 'var(--color-canvas)',
         border: '1px solid var(--color-border)',
@@ -158,7 +159,8 @@ export default function BlogForm() {
           rows={3}
           className="w-full px-3 py-2.5 text-sm resize-none transition-colors"
           style={{
-            borderRadius: R,
+            fontFamily: 'var(--font-ui)',
+        borderRadius: R,
             background: 'var(--color-canvas)',
             border: '1px solid var(--color-border)',
             color: 'var(--color-ink)',
@@ -199,7 +201,8 @@ export default function BlogForm() {
             placeholder="e.g. developers"
             className="w-full h-10 px-3 text-sm transition-colors"
             style={{
-              borderRadius: R,
+              fontFamily: 'var(--font-ui)',
+        borderRadius: R,
               background: 'var(--color-canvas)',
               border: '1px solid var(--color-border)',
               color: 'var(--color-ink)',
@@ -222,7 +225,8 @@ export default function BlogForm() {
       <div
         className="flex items-center justify-between px-3.5 py-3"
         style={{
-          borderRadius: R,
+          fontFamily: 'var(--font-ui)',
+        borderRadius: R,
           background: 'var(--color-surface)',
           border: '1px solid var(--color-border)',
         }}
@@ -233,8 +237,8 @@ export default function BlogForm() {
             : <BookOpen className="h-4 w-4" style={{ color: 'var(--color-ink-4)' }} />
           }
           <div>
-            <p className="text-sm font-medium" style={{ color: 'var(--color-ink)' }}>Web Research</p>
-            <p className="text-xs" style={{ color: 'var(--color-ink-4)' }}>
+            <p className="text-sm font-medium" style={{ fontFamily: 'var(--font-ui)', color: 'var(--color-ink)' }}>Web Research</p>
+            <p className="text-xs" style={{ fontFamily: 'var(--font-body)', color: 'var(--color-ink-4)' }}>
               {form.use_web
                 ? 'Searches the web for up-to-date sources'
                 : 'Uses model knowledge only'}
@@ -267,7 +271,8 @@ export default function BlogForm() {
         <p
           className="text-sm px-3.5 py-3"
           style={{
-            borderRadius: R,
+            fontFamily: 'var(--font-ui)',
+        borderRadius: R,
             color: 'var(--color-error)',
             background: 'var(--color-error-bg)',
             border: '1px solid rgba(192,57,43,0.2)',
@@ -282,7 +287,8 @@ export default function BlogForm() {
         disabled={isSubmitting || !form.topic.trim()}
         className="w-full h-11 flex items-center justify-center gap-2 text-sm font-semibold transition-all disabled:opacity-40 disabled:cursor-not-allowed"
         style={{
-          borderRadius: R,
+          fontFamily: 'var(--font-ui)',
+        borderRadius: R,
           background: isSubmitting || !form.topic.trim() ? 'var(--color-border-strong)' : 'var(--color-ink)',
           color: 'var(--color-ink-inv)',
           border: 'none',

@@ -174,7 +174,7 @@ export default function SlidesPanel({
         </div>
         <h3
           className="text-base font-semibold mb-2"
-          style={{ color: 'var(--color-ink)', letterSpacing: '-0.02em' }}
+          style={{ fontFamily: 'var(--font-display)', color: 'var(--color-ink)', letterSpacing: '-0.01em' }}
         >
           Slide generation failed
         </h3>
@@ -224,8 +224,8 @@ export default function SlidesPanel({
         </div>
 
         <h3
-          className="text-lg font-bold mb-1.5"
-          style={{ color: 'var(--color-ink)', letterSpacing: '-0.02em' }}
+          className="text-2xl font-normal mb-1.5"
+          style={{ fontFamily: 'var(--font-display)', color: 'var(--color-ink)', letterSpacing: '-0.01em' }}
         >
           Generating presentation slides
         </h3>
@@ -253,7 +253,7 @@ export default function SlidesPanel({
               }}
             />
           </div>
-          <div className="flex justify-between items-center text-xs mt-2" style={{ color: 'var(--color-ink-4)' }}>
+          <div className="flex justify-between items-center text-xs mt-2" style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-ink-4)', letterSpacing: '0.03em' }}>
             <span>Stage: {stage}</span>
             <span>{progress}%</span>
           </div>
@@ -512,13 +512,13 @@ export default function SlidesPanel({
         </div>
 
         <h3
-          className="text-xl font-bold mb-2.5"
-          style={{ color: 'var(--color-ink)', letterSpacing: '-0.025em' }}
+          className="text-2xl sm:text-3xl font-normal mb-2.5"
+          style={{ fontFamily: 'var(--font-display)', color: 'var(--color-ink)', letterSpacing: '-0.015em' }}
         >
           Generate Presentation Slides
         </h3>
 
-        <p className="text-sm leading-relaxed mb-8" style={{ color: 'var(--color-ink-3)' }}>
+        <p className="text-sm leading-relaxed mb-8" style={{ fontFamily: 'var(--font-body)', color: 'var(--color-ink-3)', lineHeight: 1.65 }}>
           Transform this technical article into an executive slide deck. Includes compiled Beamer LaTeX PDF typography with professional design rhythm, plus an editable PowerPoint (.pptx) file with speaker notes.
         </p>
 
@@ -526,7 +526,7 @@ export default function SlidesPanel({
         <div className="mb-8 text-left">
           <label
             className="block text-xs font-semibold uppercase tracking-wider mb-3"
-            style={{ color: 'var(--color-ink-3)', letterSpacing: '0.05em' }}
+            style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-ink-3)', letterSpacing: '0.08em' }}
           >
             Slide Count
           </label>
@@ -556,7 +556,7 @@ export default function SlidesPanel({
                   >
                     {opt.label}
                   </p>
-                  <p className="text-[11px]" style={{ color: 'var(--color-ink-4)' }}>
+                  <p className="text-[11px]" style={{ fontFamily: 'var(--font-body)', color: 'var(--color-ink-4)' }}>
                     {opt.desc}
                   </p>
                 </button>

@@ -45,10 +45,10 @@ export default function SourceList({ sources }: Props) {
     <div className="space-y-5">
       {/* Header */}
       <div className="flex items-baseline gap-2">
-        <p className="text-sm font-semibold" style={{ color: 'var(--color-ink)' }}>
+        <p className="text-sm font-semibold" style={{ fontFamily: 'var(--font-ui)', color: 'var(--color-ink)' }}>
           {sources.length} {sources.length === 1 ? 'source' : 'sources'} cited
         </p>
-        <span className="text-xs" style={{ color: 'var(--color-ink-4)' }}>
+        <span className="text-xs" style={{ fontFamily: 'var(--font-body)', color: 'var(--color-ink-4)' }}>
           in this article
         </span>
       </div>
@@ -76,6 +76,7 @@ export default function SourceList({ sources }: Props) {
                 borderRadius: '3px',
                 background: 'var(--color-border)',
                 color: 'var(--color-ink-4)',
+                fontFamily: 'var(--font-mono)',
                 fontVariantNumeric: 'tabular-nums',
               }}
             >
@@ -114,13 +115,13 @@ export default function SourceList({ sources }: Props) {
               </div>
 
               <div className="flex items-center gap-3 mt-1 flex-wrap">
-                <span className="text-xs" style={{ color: 'var(--color-ink-4)' }}>
+                <span className="text-xs" style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-ink-4)' }}>
                   {getDomain(source.url)}
                 </span>
                 {source.published_at && (
                   <span
                     className="flex items-center gap-1 text-xs"
-                    style={{ color: 'var(--color-ink-4)' }}
+                    style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-ink-4)' }}
                   >
                     <Calendar className="h-2.5 w-2.5" strokeWidth={1.5} />
                     {source.published_at}
@@ -131,7 +132,7 @@ export default function SourceList({ sources }: Props) {
               {source.snippet && (
                 <p
                   className="text-xs mt-1.5 leading-relaxed line-clamp-2"
-                  style={{ color: 'var(--color-ink-3)' }}
+                  style={{ fontFamily: 'var(--font-body)', color: 'var(--color-ink-3)' }}
                 >
                   {source.snippet}
                 </p>

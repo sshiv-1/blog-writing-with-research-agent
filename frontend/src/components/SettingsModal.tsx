@@ -179,7 +179,8 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
             <Cpu className="w-4 h-4 text-[var(--color-accent)]" />
             <h2
               id="settings-title"
-              className="text-base font-bold tracking-tight text-[var(--color-ink)]"
+              className="text-lg font-normal tracking-tight text-[var(--color-ink)]"
+              style={{ fontFamily: 'var(--font-display)', letterSpacing: '-0.01em' }}
             >
               Model & BYOK Settings
             </h2>

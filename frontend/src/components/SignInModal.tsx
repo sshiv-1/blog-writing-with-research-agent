@@ -116,12 +116,12 @@ export default function SignInModal({ isOpen, onClose }: SignInModalProps) {
         <div className="mb-6">
           <h2
             id="signin-title"
-            className="text-xl font-bold tracking-tight"
-            style={{ color: 'var(--color-ink)', letterSpacing: '-0.02em' }}
+            className="text-2xl font-normal tracking-tight"
+            style={{ fontFamily: 'var(--font-display)', color: 'var(--color-ink)', letterSpacing: '-0.015em' }}
           >
             {mode === 'signin' ? 'Sign in to SAGE' : 'Create a SAGE account'}
           </h2>
-          <p className="text-xs mt-1 text-[var(--color-ink-3)]">
+          <p className="text-xs mt-1 text-[var(--color-ink-3)]" style={{ fontFamily: 'var(--font-body)' }}>
             {mode === 'signin'
               ? 'Access your research history and saved BYOK models.'
               : 'Save generated articles, presentations, and custom API keys.'}

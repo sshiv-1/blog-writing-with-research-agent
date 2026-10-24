@@ -71,17 +71,19 @@ export default function Header({ leftSlot, rightSlot }: HeaderProps) {
             >
               <span
                 className="text-sm font-semibold tracking-tight transition-colors group-hover:text-[var(--color-accent)]"
-                style={{ color: 'var(--color-ink)', letterSpacing: '-0.02em' }}
+                style={{ fontFamily: 'var(--font-ui)', color: 'var(--color-ink)', letterSpacing: '-0.02em' }}
               >
                 SAGE
               </span>
               <span
                 className="text-xs px-1.5 py-0.5"
                 style={{
+                  fontFamily: 'var(--font-mono)',
                   background: 'var(--color-accent-muted)',
                   color: 'var(--color-accent)',
-                  fontSize: '0.6875rem',
+                  fontSize: '0.625rem',
                   fontWeight: 600,
+                  letterSpacing: '0.06em',
                   borderRadius: '3px',
                 }}
               >
@@ -102,10 +104,10 @@ export default function Header({ leftSlot, rightSlot }: HeaderProps) {
               className="flex items-center gap-1.5 h-8 px-2.5 sm:px-3 text-xs font-medium rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-ink-2)] hover:border-[var(--color-border-strong)] hover:text-[var(--color-ink)] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] cursor-pointer"
             >
               <Cpu className="w-3.5 h-3.5 text-[var(--color-accent)]" />
-              <span className="hidden sm:inline font-mono text-[0.6875rem]">
+              <span className="hidden sm:inline font-mono text-[0.6875rem]" style={{ letterSpacing: '0.02em' }}>
                 {headerLabel}
               </span>
-              <span className="sm:hidden font-mono text-[0.6875rem]">Model</span>
+              <span className="sm:hidden font-mono text-[0.6875rem]" style={{ letterSpacing: '0.02em' }}>Model</span>
             </button>
 
             {/* Auth Controls (hidden when Supabase is not configured per amendment 5) */}
@@ -138,8 +140,8 @@ export default function Header({ leftSlot, rightSlot }: HeaderProps) {
                         }}
                       >
                         <div className="px-3.5 py-2 border-b border-[var(--color-border)]">
-                          <p className="font-semibold text-[var(--color-ink)] truncate">{user.email}</p>
-                          <p className="text-[0.6875rem] text-[var(--color-ink-4)] mt-0.5">Signed in</p>
+                          <p className="font-semibold text-[var(--color-ink)] truncate" style={{ fontFamily: 'var(--font-ui)' }}>{user.email}</p>
+                          <p className="text-[0.6875rem] text-[var(--color-ink-4)] mt-0.5" style={{ fontFamily: 'var(--font-mono)', letterSpacing: '0.04em' }}>Signed in</p>
                         </div>
 
                         <div className="py-1">

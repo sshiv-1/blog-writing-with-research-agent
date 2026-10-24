@@ -25,11 +25,11 @@ export default function ProgressStepper({ jobStatus }: Props) {
     <div className="w-full space-y-6">
       {/* Progress bar */}
       <div className="space-y-2">
-        <div className="flex justify-between items-center text-xs" style={{ color: 'var(--color-ink-4)' }}>
+        <div className="flex justify-between items-center text-xs" style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-ink-4)', letterSpacing: '0.04em' }}>
           <span>Progress</span>
           <span
             className="font-semibold tabular-nums"
-            style={{ color: 'var(--color-accent)', fontVariantNumeric: 'tabular-nums' }}
+            style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-accent)', fontVariantNumeric: 'tabular-nums' }}
           >
             {progress}%
           </span>
@@ -78,7 +78,7 @@ export default function ProgressStepper({ jobStatus }: Props) {
                 ) : isCurrent ? (
                   <Loader2
                     className="w-4.5 h-4.5 animate-spin"
-                    style={{ color: 'var(--color-accent)' }}
+                    style={{ fontFamily: 'var(--font-body)', color: 'var(--color-accent)' }}
                     strokeWidth={2}
                   />
                 ) : (
@@ -95,6 +95,7 @@ export default function ProgressStepper({ jobStatus }: Props) {
                 <p
                   className="text-sm font-medium"
                   style={{
+                    fontFamily: 'var(--font-ui)',
                     color: isDone
                       ? 'var(--color-ink-4)'
                       : isCurrent
@@ -108,7 +109,7 @@ export default function ProgressStepper({ jobStatus }: Props) {
                 {isCurrent && (
                   <p
                     className="text-xs mt-0.5"
-                    style={{ color: 'var(--color-accent)' }}
+                    style={{ fontFamily: 'var(--font-body)', color: 'var(--color-accent)' }}
                   >
                     {stage.desc}
                   </p>
