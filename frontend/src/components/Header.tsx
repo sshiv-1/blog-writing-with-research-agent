@@ -54,10 +54,8 @@ export default function Header({ leftSlot, rightSlot }: HeaderProps) {
       <header
         className="sticky top-0 z-40 flex items-center h-14 px-4 sm:px-6"
         style={{
-          background: 'var(--color-overlay)',
+          background: 'var(--color-canvas)',
           borderBottom: '1px solid var(--color-border)',
-          backdropFilter: 'blur(12px)',
-          WebkitBackdropFilter: 'blur(12px)',
         }}
       >
         <div className="w-full max-w-6xl mx-auto flex items-center justify-between gap-3">
@@ -70,24 +68,10 @@ export default function Header({ leftSlot, rightSlot }: HeaderProps) {
               className="flex items-center gap-2 text-decoration-none group focus:outline-none"
             >
               <span
-                className="text-sm font-semibold tracking-tight transition-colors group-hover:text-[var(--color-accent)]"
-                style={{ fontFamily: 'var(--font-ui)', color: 'var(--color-ink)', letterSpacing: '-0.02em' }}
+                className="text-base font-medium transition-colors group-hover:text-[var(--color-accent)]"
+                style={{ fontFamily: 'var(--font-ui)', color: 'var(--color-ink)' }}
               >
                 SAGE
-              </span>
-              <span
-                className="text-xs px-1.5 py-0.5"
-                style={{
-                  fontFamily: 'var(--font-mono)',
-                  background: 'var(--color-accent-muted)',
-                  color: 'var(--color-accent)',
-                  fontSize: '0.625rem',
-                  fontWeight: 600,
-                  letterSpacing: '0.06em',
-                  borderRadius: '3px',
-                }}
-              >
-                BETA
               </span>
             </Link>
           </div>

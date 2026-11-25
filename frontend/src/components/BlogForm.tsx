@@ -20,13 +20,13 @@ const STYLES = [
 ]
 
 /* Shared radius — restrained, not pill-heavy */
-const R = '4px'
+const R = '8px'
 
 function FieldLabel({ children, htmlFor }: { children: React.ReactNode; htmlFor?: string }) {
   return (
     <label
       htmlFor={htmlFor}
-      className="block text-sm font-medium mb-1.5"
+      className="block text-sm font-medium mb-2"
       style={{ fontFamily: 'var(--font-ui)', color: 'var(--color-ink-2)' }}
     >
       {children}
@@ -157,7 +157,7 @@ export default function BlogForm() {
           id="topic"
           placeholder="e.g. How LangGraph enables stateful multi-agent workflows in production"
           rows={3}
-          className="w-full px-3 py-2.5 text-sm resize-none transition-colors"
+          className="w-full px-3 py-2.5 text-sm resize-none transition-colors placeholder:text-[var(--color-ink-3)]"
           style={{
             fontFamily: 'var(--font-ui)',
         borderRadius: R,
@@ -253,6 +253,7 @@ export default function BlogForm() {
         <button
           type="button"
           role="switch"
+          aria-label="Web Research"
           aria-checked={form.use_web}
           onClick={() => setForm(f => ({ ...f, use_web: !f.use_web }))}
           className="relative inline-flex h-5 w-9 flex-shrink-0 items-center rounded-full transition-colors"
@@ -285,13 +286,13 @@ export default function BlogForm() {
       <button
         type="submit"
         disabled={isSubmitting || !form.topic.trim()}
-        className="w-full h-11 flex items-center justify-center gap-2 text-sm font-semibold transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+        className="w-full h-12 flex items-center justify-center gap-2 text-sm font-medium transition-colors disabled:opacity-100 disabled:cursor-not-allowed"
         style={{
           fontFamily: 'var(--font-ui)',
         borderRadius: R,
-          background: isSubmitting || !form.topic.trim() ? 'var(--color-border-strong)' : 'var(--color-ink)',
-          color: 'var(--color-ink-inv)',
-          border: 'none',
+          background: isSubmitting || form.topic.trim() ? 'var(--color-ink)' : 'var(--color-surface)',
+          color: isSubmitting || form.topic.trim() ? 'var(--color-ink-inv)' : 'var(--color-ink-3)',
+          border: isSubmitting || form.topic.trim() ? 'none' : '1px solid var(--color-border)',
         }}
       >
         {isSubmitting ? (

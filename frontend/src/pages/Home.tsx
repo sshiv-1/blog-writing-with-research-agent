@@ -14,20 +14,19 @@ export default function Home() {
     >
       <Header />
 
-      {/* Main — split layout at lg, stacked on mobile */}
-      <main className="flex-1 flex items-start justify-center px-6 py-12 sm:py-16">
-        <div className="w-full max-w-6xl">
+      <main className="flex-1 flex items-start justify-center px-5 py-10 sm:px-6 sm:py-12">
+        <div className="w-full max-w-7xl">
           {/* Grid: left copy & features, right form card */}
-          <div className="grid grid-cols-1 lg:grid-cols-[1fr_440px] gap-12 lg:gap-16 items-start">
+          <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_440px] gap-10 lg:gap-16 items-start">
 
             {/* ── Left: intro copy & features ── */}
-            <div className="pt-2 lg:pt-4">
+            <div className="pt-2 lg:pt-4 min-w-0">
               <h1
-                className="text-[2.75rem] sm:text-[3.5rem] lg:text-[4.25rem] font-light leading-[1.02] mb-5 tracking-tight"
+                className="text-[2.5rem] sm:text-6xl lg:text-7xl font-normal leading-[1.04] mb-5"
                 style={{
                   fontFamily: 'var(--font-display)',
                   color: 'var(--color-ink)',
-                  letterSpacing: '-0.015em',
+                  letterSpacing: '-0.025em',
                 }}
               >
                 Research it. Write it.
@@ -38,8 +37,8 @@ export default function Home() {
                     fontStyle: 'italic',
                     fontWeight: 400,
                     color: 'var(--color-ink-3)',
-                    marginTop: '0.12em',
-                    letterSpacing: '-0.01em',
+                    marginTop: '0.08em',
+                    letterSpacing: '-0.015em',
                   }}
                 >
                   Present it.
@@ -51,51 +50,21 @@ export default function Home() {
                 style={{
                   fontFamily: 'var(--font-body)',
                   color: 'var(--color-ink-3)',
-                  fontSize: '1.0625rem',
-                  lineHeight: 1.65,
+                  fontSize: '1.125rem',
+                  lineHeight: 1.6,
                 }}
               >
                 Give SAGE a topic. It researches the web, plans an outline, drafts every section in parallel, and delivers a cited article. Then turn that article into a lecture-style slide deck with one click: a PDF and an editable PowerPoint.
               </p>
 
-              {/* Capability chips */}
-              <div className="flex flex-wrap gap-2 mb-8">
-                {[
-                  { label: 'Live web research', detail: 'Tavily' },
-                  { label: 'Parallel drafting', detail: 'LangGraph' },
-                  { label: 'Cited sources', detail: 'Every claim' },
-                  { label: 'Lecture slides', detail: 'PDF + PPTX' },
-                ].map(({ label, detail }) => (
-                  <span
-                    key={label}
-                    className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 transition-colors hover:border-[var(--color-border-strong)] cursor-default"
-                    style={{
-                      fontFamily: 'var(--font-ui)',
-                      background: 'var(--color-surface)',
-                      border: '1px solid var(--color-border)',
-                      color: 'var(--color-ink-3)',
-                      borderRadius: '4px',
-                    }}
-                  >
-                    {label}
-                    <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-ink-4)', fontWeight: 400 }}>· {detail}</span>
-                  </span>
-                ))}
-              </div>
-
-              {/* Compact "How it works" strip */}
               <div className="mb-8">
-                <p
-                  className="text-[11px] font-medium uppercase mb-3"
-                  style={{
-                    fontFamily: 'var(--font-mono)',
-                    color: 'var(--color-ink-4)',
-                    letterSpacing: '0.08em',
-                  }}
+                <h2
+                  className="text-lg font-medium mb-3"
+                  style={{ fontFamily: 'var(--font-ui)', color: 'var(--color-ink)' }}
                 >
                   How it works
-                </p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                </h2>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-3">
                   {[
                     { step: '1', title: 'Topic', desc: 'Set tone, audience and length' },
                     { step: '2', title: 'Research', desc: 'Web search and evidence' },
@@ -104,30 +73,25 @@ export default function Home() {
                   ].map(({ step, title, desc }) => (
                     <div
                       key={step}
-                      className="flex items-start gap-2.5 p-2.5 transition-colors hover:border-[var(--color-border-strong)]"
+                      className="flex items-start gap-3 py-2.5"
                       style={{
-                        borderRadius: '4px',
-                        background: 'var(--color-surface)',
-                        border: '1px solid var(--color-border)',
+                        borderBottom: '1px solid var(--color-border)',
                       }}
                     >
                       <span
-                        className="flex-shrink-0 w-5 h-5 flex items-center justify-center text-[11px] font-semibold"
+                        className="flex-shrink-0 w-7 h-7 flex items-center justify-center text-xs"
                         style={{
                           fontFamily: 'var(--font-mono)',
-                          borderRadius: '3px',
-                          background: 'var(--color-elevated)',
-                          color: 'var(--color-accent)',
-                          border: '1px solid var(--color-border)',
+                          color: 'var(--color-ink-4)',
                         }}
                       >
-                        {step}
+                        0{step}
                       </span>
                       <div className="min-w-0">
-                        <p className="text-xs font-semibold leading-none mb-1" style={{ fontFamily: 'var(--font-ui)', color: 'var(--color-ink)' }}>
+                        <p className="text-sm font-medium leading-none mb-1.5" style={{ fontFamily: 'var(--font-ui)', color: 'var(--color-ink)' }}>
                           {title}
                         </p>
-                        <p className="text-[11px] leading-snug" style={{ fontFamily: 'var(--font-body)', color: 'var(--color-ink-3)' }}>
+                        <p className="text-xs leading-snug" style={{ fontFamily: 'var(--font-body)', color: 'var(--color-ink-3)' }}>
                           {desc}
                         </p>
                       </div>
@@ -136,42 +100,60 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* Purely decorative 16:9 slide-preview mock */}
-              <div className="hidden sm:block max-w-[280px] w-full mb-8">
+              <div className="hidden sm:block max-w-2xl w-full mb-8">
                 <div
-                  className="relative aspect-[16/9] w-full overflow-hidden flex flex-col justify-between"
+                  className="grid grid-cols-[0.78fr_1.22fr] w-full overflow-hidden"
                   style={{
-                    borderRadius: '6px',
+                    minHeight: '208px',
+                    borderRadius: '14px',
                     background: 'var(--color-elevated)',
                     border: '1px solid var(--color-border)',
-                    boxShadow: '0 2px 8px rgba(26,25,22,0.06)',
+                    boxShadow: '0 8px 24px rgba(26,25,22,0.06)',
                   }}
                 >
-                  {/* Navy title bar */}
                   <div
-                    className="px-3 py-1.5 flex items-center justify-between"
-                    style={{ background: '#272A40' }}
+                    className="p-4 sm:p-5 flex flex-col justify-between"
+                    style={{ background: 'var(--color-surface)', borderRight: '1px solid var(--color-border)' }}
                   >
-                    <span className="text-[10px] font-medium text-white tracking-tight" style={{ fontFamily: 'var(--font-ui)' }}>Key Insight</span>
-                    <span className="text-[8px] text-[#DCEEEE]" style={{ fontFamily: 'var(--font-mono)' }}>03 / 10</span>
+                    <div>
+                      <p className="text-xs font-medium mb-3" style={{ color: 'var(--color-ink-3)' }}>Source trail</p>
+                      <div className="space-y-3">
+                        <div className="flex items-start gap-2.5">
+                          <span className="text-[11px] tabular-nums" style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-accent)' }}>01</span>
+                          <span className="text-xs leading-snug" style={{ color: 'var(--color-ink-2)' }}>Original research</span>
+                        </div>
+                        <div className="flex items-start gap-2.5">
+                          <span className="text-[11px] tabular-nums" style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-accent)' }}>02</span>
+                          <span className="text-xs leading-snug" style={{ color: 'var(--color-ink-2)' }}>Technical documentation</span>
+                        </div>
+                      </div>
+                    </div>
+                    <span className="text-[11px]" style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-ink-4)' }}>Research notes</span>
                   </div>
 
-                  {/* Body with placeholder lines */}
-                  <div className="p-3 space-y-1.5 flex-1 flex flex-col justify-center">
-                    <div className="h-1.5 w-11/12 rounded" style={{ background: '#e5e2db' }} />
-                    <div className="h-1.5 w-4/5 rounded" style={{ background: '#ede9e3' }} />
-                    <div className="h-1.5 w-3/4 rounded" style={{ background: '#ede9e3' }} />
-                  </div>
-
-                  {/* Tiny navy footer bar */}
                   <div
-                    className="px-3 py-0.5 flex items-center justify-between text-[7px] text-white"
-                    style={{ background: '#272A40' }}
+                    className="p-4 sm:p-5 flex flex-col justify-between"
+                    style={{ background: '#252a35', color: '#f7f4ee' }}
                   >
-                    <span className="font-semibold" style={{ fontFamily: 'var(--font-ui)' }}>SAGE</span>
-                    <span className="opacity-80" style={{ fontFamily: 'var(--font-mono)' }}>Lecture Series</span>
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-[11px] font-medium" style={{ color: '#d8c8a9' }}>Lecture slide</span>
+                      <span className="text-[11px] tabular-nums" style={{ fontFamily: 'var(--font-mono)', color: '#c4c6ca' }}>03 / 10</span>
+                    </div>
+                    <div className="py-4">
+                      <p className="text-xl sm:text-2xl leading-tight" style={{ fontFamily: 'var(--font-display)', color: '#fffaf0' }}>
+                        Keep evidence close to the claim
+                      </p>
+                      <div className="mt-3 h-px w-12" style={{ background: 'var(--color-accent-dim)' }} />
+                    </div>
+                    <div className="flex items-center justify-between gap-3 text-[11px]" style={{ color: '#c4c6ca' }}>
+                      <span>Source-backed writing</span>
+                      <span style={{ fontFamily: 'var(--font-mono)' }}>[01] [02]</span>
+                    </div>
                   </div>
                 </div>
+                <p className="mt-2 text-xs" style={{ color: 'var(--color-ink-4)' }}>
+                  Research notes, carried into the lecture deck
+                </p>
               </div>
 
               {/* Footer note — visible on desktop */}
@@ -194,28 +176,21 @@ export default function Home() {
               style={{
                 background: 'var(--color-elevated)',
                 border: '1px solid var(--color-border)',
-                borderRadius: '6px',
-                boxShadow: '0 1px 3px rgba(26,25,22,0.06), 0 8px 24px rgba(26,25,22,0.05)',
+                borderRadius: '16px',
+                boxShadow: '0 8px 24px rgba(26,25,22,0.06)',
               }}
             >
               {/* Form header */}
               <div
-                className="px-6 py-4"
+                className="px-6 py-5"
                 style={{ borderBottom: '1px solid var(--color-border)' }}
               >
-                <p
-                  className="text-xs font-medium uppercase"
-                  style={{
-                    fontFamily: 'var(--font-mono)',
-                    color: 'var(--color-ink-4)',
-                    letterSpacing: '0.09em',
-                  }}
-                >
-                  Article Settings
-                </p>
+                <h2 className="text-lg font-medium" style={{ fontFamily: 'var(--font-ui)', color: 'var(--color-ink)' }}>
+                  Article settings
+                </h2>
               </div>
               {/* Form body */}
-              <div className="px-6 py-6">
+              <div className="px-5 py-6 sm:px-6">
                 <BlogForm />
               </div>
             </div>

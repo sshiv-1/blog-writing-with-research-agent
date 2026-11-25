@@ -157,7 +157,7 @@ export default function SlidesPanel({
       <div
         className="p-8 text-center flex flex-col items-center justify-center"
         style={{
-          borderRadius: '6px',
+          borderRadius: '16px',
           background: 'var(--color-surface)',
           border: '1px solid var(--color-border)',
         }}
@@ -165,7 +165,7 @@ export default function SlidesPanel({
         <div
           className="w-12 h-12 flex items-center justify-center mb-4"
           style={{
-            borderRadius: '6px',
+            borderRadius: '8px',
             background: 'var(--color-error-bg)',
             border: '1px solid rgba(192,57,43,0.2)',
           }}
@@ -186,7 +186,7 @@ export default function SlidesPanel({
           onClick={handleStart}
           className="flex items-center gap-2 h-9 px-4 text-sm font-medium transition-colors cursor-pointer"
           style={{
-            borderRadius: '4px',
+            borderRadius: '8px',
             background: 'var(--color-ink)',
             color: 'var(--color-ink-inv)',
           }}
@@ -207,7 +207,7 @@ export default function SlidesPanel({
       <div
         className="p-8 sm:p-12 text-center flex flex-col items-center justify-center"
         style={{
-          borderRadius: '6px',
+          borderRadius: '16px',
           background: 'var(--color-surface)',
           border: '1px solid var(--color-border)',
         }}
@@ -215,7 +215,7 @@ export default function SlidesPanel({
         <div
           className="w-12 h-12 flex items-center justify-center mb-5"
           style={{
-            borderRadius: '6px',
+            borderRadius: '8px',
             background: 'var(--color-accent-muted)',
             border: '1px solid var(--color-accent-ring)',
           }}
@@ -240,7 +240,7 @@ export default function SlidesPanel({
           <div
             className="w-full h-2 overflow-hidden"
             style={{
-              borderRadius: '9999px',
+              borderRadius: '4px',
               background: 'var(--color-border)',
             }}
           >
@@ -249,7 +249,7 @@ export default function SlidesPanel({
               style={{
                 width: `${Math.max(progress, 8)}%`,
                 background: 'var(--color-accent)',
-                borderRadius: '9999px',
+                borderRadius: '4px',
               }}
             />
           </div>
@@ -277,7 +277,7 @@ export default function SlidesPanel({
         <div
           className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5"
           style={{
-            borderRadius: '6px 6px 0 0',
+            borderRadius: '12px 12px 0 0',
             background: 'var(--color-surface)',
             border: '1px solid var(--color-border)',
             borderBottom: '1px solid var(--color-border-soft)',
@@ -290,15 +290,7 @@ export default function SlidesPanel({
               <span>{slideCountRendered} slides</span>
             </div>
 
-            <span
-              className="flex items-center gap-1 text-[11px] font-medium px-2 py-0.5"
-              style={{
-                borderRadius: '4px',
-                background: 'var(--color-success-bg)',
-                color: 'var(--color-success)',
-                border: '1px solid rgba(45,122,79,0.2)',
-              }}
-            >
+            <span className="flex items-center gap-1.5 text-xs" style={{ color: 'var(--color-success)' }}>
               <span
                 className="h-1.5 w-1.5 rounded-full"
                 style={{ background: 'var(--color-success)' }}
@@ -314,15 +306,15 @@ export default function SlidesPanel({
               type="button"
               onClick={() => handleDownload('pdf')}
               disabled={downloadingFormat === 'pdf'}
-              className="flex items-center gap-1.5 h-7 px-2.5 text-xs font-medium rounded transition-colors disabled:opacity-50 cursor-pointer"
+              className="flex items-center gap-1.5 h-9 px-3 text-xs font-medium transition-colors disabled:opacity-50 cursor-pointer"
               style={{
-                borderRadius: '4px',
+                borderRadius: '8px',
                 background: 'var(--color-elevated)',
                 border: '1px solid var(--color-border)',
                 color: 'var(--color-ink-2)',
               }}
             >
-              <Download className={`h-3.5 w-3.5 ${downloadingFormat === 'pdf' ? 'animate-bounce' : ''}`} />
+              {downloadingFormat === 'pdf' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
               PDF
             </button>
 
@@ -330,15 +322,15 @@ export default function SlidesPanel({
               type="button"
               onClick={() => handleDownload('pptx')}
               disabled={downloadingFormat === 'pptx'}
-              className="flex items-center gap-1.5 h-7 px-2.5 text-xs font-medium rounded transition-colors disabled:opacity-50 cursor-pointer"
+              className="flex items-center gap-1.5 h-9 px-3 text-xs font-medium transition-colors disabled:opacity-50 cursor-pointer"
               style={{
-                borderRadius: '4px',
+                borderRadius: '8px',
                 background: 'var(--color-elevated)',
                 border: '1px solid var(--color-border)',
                 color: 'var(--color-ink-2)',
               }}
             >
-              <Download className={`h-3.5 w-3.5 ${downloadingFormat === 'pptx' ? 'animate-bounce' : ''}`} />
+              {downloadingFormat === 'pptx' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
               PPTX
             </button>
 
@@ -346,16 +338,16 @@ export default function SlidesPanel({
               type="button"
               onClick={() => handleDownload('tex')}
               disabled={downloadingFormat === 'tex'}
-              className="flex items-center gap-1.5 h-7 px-2.5 text-xs font-medium rounded transition-colors disabled:opacity-50 cursor-pointer"
+              className="flex items-center gap-1.5 h-9 px-3 text-xs font-medium transition-colors disabled:opacity-50 cursor-pointer"
               style={{
-                borderRadius: '4px',
+                borderRadius: '8px',
                 background: 'var(--color-elevated)',
                 border: '1px solid var(--color-border)',
                 color: 'var(--color-ink-4)',
               }}
               title="Download raw LaTeX source"
             >
-              <FileCode className={`h-3.5 w-3.5 ${downloadingFormat === 'tex' ? 'animate-bounce' : ''}`} />
+              {downloadingFormat === 'tex' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileCode className="h-3.5 w-3.5" />}
               .tex
             </button>
           </div>
@@ -424,13 +416,13 @@ export default function SlidesPanel({
         <div
           className="relative w-full overflow-hidden"
           style={{
-            borderRadius: '0 0 6px 6px',
+            borderRadius: '0 0 12px 12px',
             border: '1px solid var(--color-border)',
             borderTop: 'none',
             background: 'var(--color-canvas)',
             height: '72vh',
-            minHeight: '520px',
-            maxHeight: '860px',
+            minHeight: '420px',
+            maxHeight: '760px',
           }}
         >
           {isPdfLoading && (
@@ -492,45 +484,35 @@ export default function SlidesPanel({
   // ── EMPTY STATE (NOT GENERATED YET) ─────────────────────────────────────
   return (
     <div
-      className="p-8 sm:p-12"
+      className="p-5 sm:p-8"
       style={{
-        borderRadius: '6px',
+        borderRadius: '16px',
         background: 'var(--color-surface)',
         border: '1px solid var(--color-border)',
       }}
     >
-      <div className="max-w-xl mx-auto text-center">
-        <div
-          className="w-12 h-12 mx-auto flex items-center justify-center mb-5"
-          style={{
-            borderRadius: '6px',
-            background: 'var(--color-elevated)',
-            border: '1px solid var(--color-border)',
-          }}
-        >
-          <Presentation className="h-6 w-6" style={{ color: 'var(--color-accent)' }} strokeWidth={1.75} />
+      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] items-center gap-8">
+        <div>
+          <h3
+            className="text-2xl sm:text-3xl font-normal mb-3"
+            style={{ fontFamily: 'var(--font-display)', color: 'var(--color-ink)', letterSpacing: '-0.02em' }}
+          >
+            Generate presentation slides
+          </h3>
+
+          <p className="text-sm leading-relaxed mb-5" style={{ fontFamily: 'var(--font-body)', color: 'var(--color-ink-3)', lineHeight: 1.65 }}>
+            Turn this article into a lecture-style deck. Review the PDF here or download an editable PowerPoint.
+          </p>
+          <p className="text-xs" style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-ink-4)' }}>
+            PDF preview · Editable PowerPoint
+          </p>
         </div>
 
-        <h3
-          className="text-2xl sm:text-3xl font-normal mb-2.5"
-          style={{ fontFamily: 'var(--font-display)', color: 'var(--color-ink)', letterSpacing: '-0.015em' }}
-        >
-          Generate Presentation Slides
-        </h3>
-
-        <p className="text-sm leading-relaxed mb-8" style={{ fontFamily: 'var(--font-body)', color: 'var(--color-ink-3)', lineHeight: 1.65 }}>
-          Transform this technical article into an executive slide deck. Includes compiled Beamer LaTeX PDF typography with professional design rhythm, plus an editable PowerPoint (.pptx) file with speaker notes.
-        </p>
-
-        {/* Slide Count Option Selector */}
-        <div className="mb-8 text-left">
-          <label
-            className="block text-xs font-semibold uppercase tracking-wider mb-3"
-            style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-ink-3)', letterSpacing: '0.08em' }}
-          >
-            Slide Count
+        <div>
+          <label className="block text-sm font-medium mb-3" style={{ color: 'var(--color-ink-2)' }}>
+            Slide count
           </label>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             {SLIDE_COUNT_OPTIONS.map(opt => {
               const isSelected = slideCount === opt.value
               return (
@@ -538,18 +520,17 @@ export default function SlidesPanel({
                   key={opt.value}
                   type="button"
                   onClick={() => setSlideCount(opt.value)}
-                  className="p-3 text-left transition-all cursor-pointer"
+                  className="p-3 text-left transition-colors cursor-pointer"
                   style={{
-                    borderRadius: '4px',
+                    borderRadius: '8px',
                     background: isSelected ? 'var(--color-elevated)' : 'var(--color-canvas)',
                     border: isSelected
                       ? '1px solid var(--color-accent)'
                       : '1px solid var(--color-border)',
-                    boxShadow: isSelected ? '0 1px 3px rgba(181, 129, 58, 0.15)' : 'none',
                   }}
                 >
                   <p
-                    className="text-sm font-semibold mb-0.5"
+                    className="text-sm font-medium mb-1"
                     style={{
                       color: isSelected ? 'var(--color-accent)' : 'var(--color-ink)',
                     }}
@@ -563,17 +544,14 @@ export default function SlidesPanel({
               )
             })}
           </div>
-        </div>
 
-        {/* Primary CTA */}
-        <div className="flex flex-col items-center gap-3">
           <button
             type="button"
             disabled={!blogIsDone}
             onClick={handleStart}
-            className="flex items-center justify-center gap-2 h-11 px-6 text-sm font-semibold transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+            className="mt-5 w-full flex items-center justify-center gap-2 h-12 px-6 text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
             style={{
-              borderRadius: '4px',
+              borderRadius: '8px',
               background: 'var(--color-ink)',
               color: 'var(--color-ink-inv)',
               border: 'none',
@@ -584,7 +562,7 @@ export default function SlidesPanel({
           </button>
 
           {!blogIsDone && (
-            <p className="text-xs" style={{ color: 'var(--color-ink-4)' }}>
+            <p className="text-xs mt-3 text-center" style={{ color: 'var(--color-ink-4)' }}>
               Wait for article generation to complete before creating slides.
             </p>
           )}

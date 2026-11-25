@@ -36,22 +36,25 @@ export default function Result() {
           <button
             type="button"
             onClick={() => navigate('/')}
-            className="flex items-center gap-1.5 h-8 px-3 text-xs sm:text-sm font-medium transition-colors"
+            aria-label="New article"
+            title="New article"
+            className="flex items-center gap-1.5 h-9 px-3 text-xs sm:text-sm font-medium transition-colors"
             style={{
-              borderRadius: '4px',
+              borderRadius: '8px',
               background: 'var(--color-surface)',
               border: '1px solid var(--color-border)',
               color: 'var(--color-ink-3)',
             }}
           >
             <ArrowLeft className="h-3.5 w-3.5" strokeWidth={2} />
-            New article
+            <span className="hidden sm:inline">New article</span>
           </button>
         }
         rightSlot={
           isDone ? (
             <span
-              className="flex items-center gap-1.5 text-xs font-medium px-2.5 py-1"
+              aria-label="Article ready"
+              className="flex items-center justify-center sm:justify-start gap-1.5 text-xs font-medium px-2.5 py-1"
               style={{
                 borderRadius: '4px',
                 fontFamily: 'var(--font-mono)',
@@ -66,7 +69,7 @@ export default function Result() {
                 style={{ background: 'var(--color-success)' }}
                 aria-hidden
               />
-              Article ready
+              <span className="hidden sm:inline">Article ready</span>
             </span>
           ) : undefined
         }
@@ -150,35 +153,29 @@ export default function Result() {
 
         {/* ── RESULT VIEW ── */}
         {isDone && result && (
-          <div className="max-w-6xl mx-auto px-6 py-10 sm:py-12">
+          <div className="max-w-7xl mx-auto px-5 sm:px-6 py-8 sm:py-10">
 
             {/* Article header */}
-            <div className="mb-8">
-              <p
-                className="text-xs font-medium uppercase mb-3"
-                style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-accent)', letterSpacing: '0.1em' }}
-              >
-                Generated Article
-              </p>
+            <div className="mb-8 max-w-5xl">
               <h1
-                className="text-2xl sm:text-3xl lg:text-4xl font-normal leading-[1.14] mb-0"
-                style={{ fontFamily: 'var(--font-display)', color: 'var(--color-ink)', letterSpacing: '-0.015em' }}
+                className="text-3xl sm:text-4xl lg:text-5xl font-normal leading-[1.12] mb-0"
+                style={{ fontFamily: 'var(--font-display)', color: 'var(--color-ink)', letterSpacing: '-0.02em' }}
               >
                 {result.title}
               </h1>
 
               {/* Metadata strip */}
               <div
-                className="flex flex-wrap items-center gap-4 mt-4 pt-4"
-                style={{ fontFamily: 'var(--font-mono)', borderTop: '1px solid var(--color-border)', letterSpacing: '0.02em' }}
+                className="flex flex-wrap items-center gap-x-5 gap-y-2 mt-5 pt-4 text-xs tabular-nums"
+                style={{ fontFamily: 'var(--font-mono)', borderTop: '1px solid var(--color-border)', color: 'var(--color-ink-3)' }}
               >
-                <span className="text-xs" style={{ color: 'var(--color-ink-4)' }}>
-                  ~{result.draft.split(/\s+/).filter(Boolean).length.toLocaleString()} words
+                <span>
+                  {result.draft.split(/\s+/).filter(Boolean).length.toLocaleString()} words
                 </span>
-                <span className="text-xs" style={{ color: 'var(--color-ink-4)' }}>
-                  {result.outline.length} sections
+                <span>
+                  {result.outline.length} {result.outline.length === 1 ? 'section' : 'sections'}
                 </span>
-                <span className="text-xs" style={{ color: 'var(--color-ink-4)' }}>
+                <span>
                   {result.sources.length} sources cited
                 </span>
               </div>
@@ -186,6 +183,8 @@ export default function Result() {
 
             {/* Tab navigation */}
             <div
+              role="tablist"
+              aria-label="Article output"
               className="flex items-center gap-0 mb-6"
               style={{ borderBottom: '1px solid var(--color-border)' }}
             >
@@ -197,8 +196,10 @@ export default function Result() {
                 <button
                   key={id}
                   type="button"
+                  role="tab"
+                  aria-selected={activeTab === id}
                   onClick={() => setActiveTab(id)}
-                  className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium relative transition-colors"
+                  className="flex items-center gap-2 px-3 sm:px-4 py-3 text-sm font-medium relative transition-colors"
                   style={{
                     color: activeTab === id ? 'var(--color-ink)' : 'var(--color-ink-4)',
                     background: 'none',
@@ -224,15 +225,15 @@ export default function Result() {
             </div>
 
             {/* Tab content */}
-            <div style={{ display: activeTab === 'article' ? 'block' : 'none' }}>
+            <div role="tabpanel" style={{ display: activeTab === 'article' ? 'block' : 'none' }}>
               <OutputEditor result={result} />
             </div>
 
-            <div style={{ display: activeTab === 'sources' ? 'block' : 'none' }} className="max-w-2xl">
+            <div role="tabpanel" style={{ display: activeTab === 'sources' ? 'block' : 'none' }} className="max-w-3xl">
               <SourceList sources={result.sources} />
             </div>
 
-            <div style={{ display: activeTab === 'slides' ? 'block' : 'none' }}>
+            <div role="tabpanel" style={{ display: activeTab === 'slides' ? 'block' : 'none' }}>
               <SlidesPanel
                 jobId={jobId ?? ''}
                 blogIsDone={isDone}

@@ -43,7 +43,7 @@ export default function OutputEditor({ result }: Props) {
       <div
         className="flex items-center justify-between px-4 py-2.5"
         style={{
-          borderRadius: '6px 6px 0 0',
+          borderRadius: '12px 12px 0 0',
           background: 'var(--color-surface)',
           border: '1px solid var(--color-border)',
           borderBottom: '1px solid var(--color-border-soft)',
@@ -53,7 +53,7 @@ export default function OutputEditor({ result }: Props) {
         <div
           className="flex items-center gap-0.5 p-0.5"
           style={{
-            borderRadius: '4px',
+            borderRadius: '8px',
             background: 'var(--color-border)',
           }}
         >
@@ -65,9 +65,9 @@ export default function OutputEditor({ result }: Props) {
               key={id}
               type="button"
               onClick={() => setActiveTab(id)}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-all"
+              className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors"
               style={{
-                borderRadius: '3px',
+                borderRadius: '6px',
                 background: activeTab === id ? 'var(--color-elevated)' : 'transparent',
                 color: activeTab === id ? 'var(--color-ink)' : 'var(--color-ink-4)',
                 boxShadow: activeTab === id ? '0 1px 2px rgba(26,25,22,0.06)' : 'none',
@@ -82,8 +82,8 @@ export default function OutputEditor({ result }: Props) {
         {/* Metadata + actions */}
         <div className="flex items-center gap-3">
           {/* Metadata */}
-          <div className="hidden sm:flex items-center gap-3 text-xs" style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-ink-4)', letterSpacing: '0.02em' }}>
-            <span>~{wordCount.toLocaleString()} words</span>
+          <div className="hidden sm:flex items-center gap-3 text-xs tabular-nums" style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-ink-3)' }}>
+            <span>{wordCount.toLocaleString()} words</span>
             <span
               className="w-0.5 h-3"
               style={{ background: 'var(--color-border-strong)', borderRadius: '1px' }}
@@ -95,7 +95,9 @@ export default function OutputEditor({ result }: Props) {
               style={{ background: 'var(--color-border-strong)', borderRadius: '1px' }}
               aria-hidden
             />
-            <span>{result.outline.length} sections</span>
+            <span>
+              {result.outline.length} {result.outline.length === 1 ? 'section' : 'sections'}
+            </span>
           </div>
 
           {/* Actions */}
@@ -105,7 +107,7 @@ export default function OutputEditor({ result }: Props) {
               onClick={handleCopy}
               className="flex items-center gap-1.5 h-7 px-2.5 text-xs font-medium transition-colors"
               style={{
-                borderRadius: '4px',
+                borderRadius: '8px',
                 background: 'var(--color-elevated)',
                 border: '1px solid var(--color-border)',
                 color: copied ? 'var(--color-success)' : 'var(--color-ink-2)',
@@ -119,7 +121,7 @@ export default function OutputEditor({ result }: Props) {
               onClick={handleDownload}
               className="flex items-center gap-1.5 h-7 px-2.5 text-xs font-medium transition-colors"
               style={{
-                borderRadius: '4px',
+                borderRadius: '8px',
                 background: 'var(--color-elevated)',
                 border: '1px solid var(--color-border)',
                 color: 'var(--color-ink-2)',
@@ -136,14 +138,14 @@ export default function OutputEditor({ result }: Props) {
       <div
         className="overflow-hidden"
         style={{
-          borderRadius: '0 0 6px 6px',
+          borderRadius: '0 0 12px 12px',
           border: '1px solid var(--color-border)',
           borderTop: 'none',
           background: 'var(--color-elevated)',
         }}
       >
         {activeTab === 'preview' ? (
-          <div className="px-6 py-8 sm:px-10 sm:py-10">
+          <div className="px-5 py-8 sm:px-10 sm:py-12">
             <div className="article-prose max-w-[70ch]">
               <ReactMarkdown remarkPlugins={[remarkGfm]}>
                 {editedDraft}
@@ -157,7 +159,7 @@ export default function OutputEditor({ result }: Props) {
               onChange={e => setEditedDraft(e.target.value)}
               className="w-full min-h-[600px] p-4 text-sm leading-relaxed resize-y"
               style={{
-                borderRadius: '4px',
+                borderRadius: '8px',
                 fontFamily: 'var(--font-mono)',
                 background: 'var(--color-canvas)',
                 border: '1px solid var(--color-border)',
