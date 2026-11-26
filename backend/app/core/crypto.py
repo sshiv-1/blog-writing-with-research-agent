@@ -37,6 +37,8 @@ def encrypt_key(plain_key: str) -> Tuple[str, str]:
         raise ValueError("API key must be a non-empty string.")
 
     cleaned = plain_key.strip()
+    if not cleaned:
+        raise ValueError("API key must be a non-empty string.")
     if len(cleaned) > 512:
         raise ValueError("API key exceeds maximum length of 512 characters.")
 

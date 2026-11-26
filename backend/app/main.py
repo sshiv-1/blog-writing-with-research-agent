@@ -19,14 +19,52 @@ async def lifespan(app: FastAPI):
     yield
 
 
+_DISABLE_DOCS = os.getenv("DISABLE_DOCS", "").strip().lower() in ("true", "1")
+MAX_REQUEST_BODY_BYTES = int(os.getenv("MAX_REQUEST_BODY_BYTES", str(1024 * 1024)))
+
 app = FastAPI(
     title="SAGE API",
     description="AI-powered research and writing studio backed by LangGraph + Groq with BYOK and Supabase persistence.",
     version="1.0.0",
-    docs_url="/docs",
-    redoc_url="/redoc",
+    docs_url=None if _DISABLE_DOCS else "/docs",
+    redoc_url=None if _DISABLE_DOCS else "/redoc",
+    openapi_url=None if _DISABLE_DOCS else "/openapi.json",
     lifespan=lifespan,
 )
+
+
+@app.middleware("http")
+async def security_and_body_limit_middleware(request: Request, call_next):
+    """Enforce bounded request body size and baseline security response headers."""
+    content_length = request.headers.get("content-length")
+    if content_length:
+        try:
+            if int(content_length) > MAX_REQUEST_BODY_BYTES:
+                return JSONResponse(status_code=413, content={"detail": "Request payload too large."})
+        except ValueError:
+            return JSONResponse(status_code=400, content={"detail": "Invalid Content-Length header."})
+
+    # For chunked/unbounded requests without Content-Length on mutating methods, check actual body size
+    if request.method in ("POST", "PUT", "PATCH") and not content_length:
+        total = 0
+        chunks: list[bytes] = []
+        async for chunk in request.stream():
+            total += len(chunk)
+            if total > MAX_REQUEST_BODY_BYTES:
+                return JSONResponse(status_code=413, content={"detail": "Request payload too large."})
+            chunks.append(chunk)
+        full_body = b"".join(chunks)
+
+        async def _receive():
+            return {"type": "http.request", "body": full_body, "more_body": False}
+
+        request._receive = _receive
+
+    response = await call_next(request)
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    return response
 
 # ---------------------------------------------------------------------------
 # CORS

@@ -110,10 +110,10 @@ export default function BlogForm() {
     setIsSubmitting(true)
     setError(null)
 
-    // Build BYOK headers
+    // Build BYOK headers (never send stale guest keys when authenticated)
     let byokHeaders: Record<string, string> | undefined
     if (provider === 'groq') {
-      const guestGroqKey = getGuestKey('groq')
+      const guestGroqKey = !user ? getGuestKey('groq') : null
       const savedGroqKey = user && savedKeys.some((k) => k.provider === 'groq')
       if (guestGroqKey || savedGroqKey) {
         byokHeaders = {
@@ -129,7 +129,7 @@ export default function BlogForm() {
         'X-LLM-Provider': provider,
         'X-LLM-Model': effectiveArticleModel,
       }
-      const guestKey = getGuestKey(provider)
+      const guestKey = !user ? getGuestKey(provider) : null
       if (guestKey) {
         byokHeaders['X-LLM-Key'] = guestKey
       }

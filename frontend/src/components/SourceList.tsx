@@ -5,21 +5,27 @@ interface Props {
   sources: Source[]
 }
 
-function getDomain(url: string): string {
+function getSafeHttpUrl(rawUrl: string): URL | null {
   try {
-    return new URL(url).hostname.replace('www.', '')
+    const parsed = new URL(rawUrl)
+    if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+      return parsed
+    }
+    return null
   } catch {
-    return url
+    return null
   }
 }
 
+function getDomain(url: string): string {
+  const safe = getSafeHttpUrl(url)
+  return safe ? safe.hostname.replace(/^www\./, '') : 'Invalid URL'
+}
+
 function getFaviconUrl(url: string): string {
-  try {
-    const { origin } = new URL(url)
-    return `https://www.google.com/s2/favicons?domain=${origin}&sz=32`
-  } catch {
-    return ''
-  }
+  const safe = getSafeHttpUrl(url)
+  if (!safe) return ''
+  return `https://www.google.com/s2/favicons?domain=${encodeURIComponent(safe.hostname)}&sz=32`
 }
 
 export default function SourceList({ sources }: Props) {
@@ -55,10 +61,12 @@ export default function SourceList({ sources }: Props) {
 
       {/* Source list */}
       <div className="space-y-2">
-        {sources.map((source, i) => (
+        {sources.map((source, i) => {
+          const safeUrl = getSafeHttpUrl(source.url)
+          return (
           <a
             key={i}
-            href={source.url}
+            href={safeUrl ? safeUrl.href : undefined}
             target="_blank"
             rel="noopener noreferrer"
             className="group flex items-start gap-3 px-4 py-3.5 transition-colors"
@@ -139,7 +147,8 @@ export default function SourceList({ sources }: Props) {
               )}
             </div>
           </a>
-        ))}
+          )
+        })}
       </div>
     </div>
   )

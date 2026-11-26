@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+from datetime import date
 from pathlib import Path
 
 # Allow running as `python cli.py` from the backend/ directory
@@ -51,6 +52,12 @@ def main() -> None:
         help="Override the as-of date for recency calculations"
     )
     args = parser.parse_args()
+
+    if args.as_of is not None:
+        try:
+            date.fromisoformat(args.as_of)
+        except ValueError:
+            parser.error("--as-of must be in YYYY-MM-DD format")
 
     record = create_job()
     job_id = record.job_id

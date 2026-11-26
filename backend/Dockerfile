@@ -24,9 +24,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Pinned Tectonic release: statically linked musl build for x86_64 Linux
 ARG TECTONIC_VERSION=0.15.0
+ARG TECTONIC_SHA256=dfb82876f2986862996e564fa507a9e576e0c1e3bee63c2c1bd677c2543e6407
 ARG TECTONIC_URL=https://github.com/tectonic-typesetting/tectonic/releases/download/tectonic%40${TECTONIC_VERSION}/tectonic-${TECTONIC_VERSION}-x86_64-unknown-linux-musl.tar.gz
 
 RUN curl -fsSL "${TECTONIC_URL}" -o /tmp/tectonic.tar.gz \
+    && echo "${TECTONIC_SHA256}  /tmp/tectonic.tar.gz" | sha256sum -c - \
     && tar -xzf /tmp/tectonic.tar.gz -C /usr/local/bin \
     && rm -f /tmp/tectonic.tar.gz \
     && chmod +x /usr/local/bin/tectonic
@@ -56,4 +58,4 @@ RUN python -c "from app.models.schemas import SlideDeck, Slide, SlideDesignBrief
 EXPOSE 8000
 
 # Start Uvicorn bound to 0.0.0.0 and dynamic $PORT provided by Render
-CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --workers 1 --proxy-headers --forwarded-allow-ips='*'"]
+CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --workers 1"]

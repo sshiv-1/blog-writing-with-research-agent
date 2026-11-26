@@ -19,9 +19,9 @@ from dotenv import load_dotenv
 
 from ..models.schemas import LLMSelection
 
-# Load backend/.env with override=True so stale shell env vars don't win.
+# Load backend/.env with override=False so container/host env vars take precedence.
 _ENV_PATH = Path(__file__).resolve().parents[2] / ".env"
-load_dotenv(_ENV_PATH, override=True)
+load_dotenv(_ENV_PATH, override=False)
 
 # ═══════════════════════════════════════════════════════════════════════════
 # PROVIDER REGISTRY
@@ -182,21 +182,37 @@ def validate_model_name(model: str) -> str:
     return mod
 
 
+_ENV_SECRET_NAMES = (
+    "GROQ_BLOG_API_KEY",
+    "GROQ_PPTX_API_KEY",
+    "TAVILY_API_KEY",
+    "SUPABASE_SERVICE_ROLE_KEY",
+    "SUPABASE_JWT_SECRET",
+    "APP_ENCRYPTION_KEY",
+)
+
+
 def scrub_secrets(text: Optional[str], keys: Optional[list[str]] = None) -> str:
     """Scrub sensitive API keys and matching patterns from any string."""
     if not text:
         return ""
     res = str(text)
-    if keys:
-        for k in keys:
-            if k and isinstance(k, str) and len(k) >= 4:
-                res = res.replace(k, "[REDACTED_API_KEY]")
+    scrub_list = list(keys) if keys else []
+    for env_name in _ENV_SECRET_NAMES:
+        val = os.environ.get(env_name)
+        if val and val.strip():
+            scrub_list.append(val.strip())
+    for k in scrub_list:
+        if k and isinstance(k, str) and len(k) >= 4:
+            res = res.replace(k, "[REDACTED_API_KEY]")
     patterns = [
         r"sk-ant-[a-zA-Z0-9_\-]{10,}",
         r"sk-or-v1-[a-zA-Z0-9_\-]{10,}",
         r"sk-[a-zA-Z0-9_\-]{10,}",
         r"gsk_[a-zA-Z0-9_\-]{10,}",
+        r"tvly-[a-zA-Z0-9_\-]{10,}",
         r"AIza[0-9A-Za-z\-_]{30,}",
+        r"eyJ[a-zA-Z0-9_\-]{10,}\.[a-zA-Z0-9_\-]{10,}\.[a-zA-Z0-9_\-]{10,}",
     ]
     for pat in patterns:
         res = re.sub(pat, "[REDACTED_API_KEY]", res)
@@ -226,16 +242,27 @@ def scrub_exception_chain(exc: BaseException, keys: Optional[list[str]] = None) 
 
 _IP_RATE_LIMITS: dict[str, deque[float]] = {}
 _IP_LOCK = threading.Lock()
+_MAX_IP_RATE_LIMIT_KEYS = 10000
 
 
 def check_ip_rate_limit(ip: str, max_reqs: int = 10, window_secs: float = 60.0) -> bool:
     """In-memory sliding window rate limiter for test probe requests per IP."""
     with _IP_LOCK:
         now = time.monotonic()
+        cutoff = now - window_secs
+        if len(_IP_RATE_LIMITS) >= _MAX_IP_RATE_LIMIT_KEYS:
+            expired_ips = [
+                k for k, dq in _IP_RATE_LIMITS.items()
+                if not dq or dq[-1] <= cutoff
+            ]
+            for k in expired_ips:
+                del _IP_RATE_LIMITS[k]
+            while len(_IP_RATE_LIMITS) >= _MAX_IP_RATE_LIMIT_KEYS:
+                _IP_RATE_LIMITS.pop(next(iter(_IP_RATE_LIMITS)))
         if ip not in _IP_RATE_LIMITS:
             _IP_RATE_LIMITS[ip] = deque()
         timestamps = _IP_RATE_LIMITS[ip]
-        while timestamps and timestamps[0] <= now - window_secs:
+        while timestamps and timestamps[0] <= cutoff:
             timestamps.popleft()
         if len(timestamps) >= max_reqs:
             return False

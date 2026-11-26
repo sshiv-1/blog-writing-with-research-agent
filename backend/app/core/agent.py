@@ -41,7 +41,12 @@ from ..models.schemas import (
     State,
     Task,
 )
-from .jobs import update_job
+from .jobs import (
+    JobCancelledError,
+    is_job_deleted,
+    register_user_task_end,
+    update_job,
+)
 from .llm import (
     PROVIDER_REGISTRY,
     blog_llm,
@@ -94,43 +99,43 @@ class SlidingWindowRateLimiter:
         self._lock = threading.Lock()
 
     def acquire(self) -> None:
-        """Block until a request slot is available under the rate limit."""
-        with self._lock:
-            now = time.monotonic()
+        """Block until a request slot is available under the rate limit without holding lock during sleep."""
+        while True:
+            sleep_needed = 0.0
+            with self._lock:
+                now = time.monotonic()
 
-            # Enforce minimum spacing between calls if configured
-            if self.min_interval > 0 and self._last_call > 0:
-                elapsed_since_last = now - self._last_call
-                if elapsed_since_last < self.min_interval:
-                    sleep_needed = self.min_interval - elapsed_since_last
-                    time.sleep(sleep_needed)
-                    now = time.monotonic()
+                # Purge timestamps outside the rolling period window
+                cutoff = now - self.period_seconds
+                while self._timestamps and self._timestamps[0] <= cutoff:
+                    self._timestamps.popleft()
 
-            # Purge timestamps outside the rolling period window
-            cutoff = now - self.period_seconds
-            while self._timestamps and self._timestamps[0] <= cutoff:
-                self._timestamps.popleft()
+                # Enforce minimum spacing between calls if configured
+                if self.min_interval > 0 and self._last_call > 0:
+                    elapsed_since_last = now - self._last_call
+                    if elapsed_since_last < self.min_interval:
+                        sleep_needed = max(sleep_needed, self.min_interval - elapsed_since_last)
 
-            # If capacity reached in the rolling window, wait until oldest expires
-            if len(self._timestamps) >= self.max_requests:
-                sleep_needed = self._timestamps[0] + self.period_seconds - now
-                if sleep_needed > 0:
+                # If capacity reached in the rolling window, wait until oldest expires
+                if len(self._timestamps) >= self.max_requests:
+                    win_wait = self._timestamps[0] + self.period_seconds - now
+                    if win_wait > sleep_needed:
+                        sleep_needed = win_wait
+
+                if sleep_needed <= 0.0:
+                    self._timestamps.append(now)
+                    self._last_call = now
+                    return
+
+                if sleep_needed > 1.0 and len(self._timestamps) >= self.max_requests:
                     logger.info(
                         "Rate limit reached (%d/%d reqs). Pausing %.2fs...",
                         len(self._timestamps),
                         self.max_requests,
                         sleep_needed,
                     )
-                    time.sleep(sleep_needed)
-                    now = time.monotonic()
-                    # Clean up again after sleeping
-                    cutoff = now - self.period_seconds
-                    while self._timestamps and self._timestamps[0] <= cutoff:
-                        self._timestamps.popleft()
 
-            now = time.monotonic()
-            self._timestamps.append(now)
-            self._last_call = now
+            time.sleep(sleep_needed)
 
 
 # Shared singleton for Tavily search: 100 requests per 60 seconds (user's tier limit)
@@ -683,23 +688,32 @@ def _build_workflow(
     worker_semaphore: threading.Semaphore,
     keys_to_scrub: Optional[list[str]] = None,
 ):
+    def _ensure_not_deleted(job_id: str) -> None:
+        if job_id and is_job_deleted(job_id):
+            raise JobCancelledError(f"Job {job_id} was cancelled or deleted.")
+
     def _router(state: State) -> dict:
+        _ensure_not_deleted(state["job_id"])
         update_job(state["job_id"], status="running", stage="routing", progress=10)
         return execute_router(state, active_llm, keys_to_scrub)
 
     def _research(state: State) -> dict:
+        _ensure_not_deleted(state["job_id"])
         update_job(state["job_id"], stage="researching", progress=25)
         return execute_research(state, active_llm, keys_to_scrub)
 
     def _orchestrator(state: State) -> dict:
+        _ensure_not_deleted(state["job_id"])
         update_job(state["job_id"], stage="planning", progress=50)
         return execute_orchestrator(state, active_llm, keys_to_scrub)
 
     def _worker(payload: dict) -> dict:
+        _ensure_not_deleted(payload["job_id"])
         update_job(payload["job_id"], stage="writing", progress=65)
         return execute_worker(payload, active_llm, worker_semaphore)
 
     def _reducer(state: State) -> dict:
+        _ensure_not_deleted(state["job_id"])
         update_job(state["job_id"], stage="finalizing", progress=90)
         return execute_reducer(state)
 
@@ -766,6 +780,7 @@ def generate_blog(
     use_web: bool = True,
     as_of: Optional[str] = None,
     llm_selection: Optional[LLMSelection] = None,
+    tracked_user_id: Optional[str] = None,
 ) -> None:
     """
     Run the full blog-generation pipeline.
@@ -784,6 +799,9 @@ def generate_blog(
     keys_to_scrub = [raw_key] if raw_key else []
 
     try:
+        if is_job_deleted(job_id):
+            return
+
         provider = (llm_selection.provider or "groq").strip().lower() if llm_selection else "groq"
         provider_cfg = PROVIDER_REGISTRY.get(provider, PROVIDER_REGISTRY["groq"])
         concurrency = provider_cfg["profile"].get("worker_concurrency", 3)
@@ -814,6 +832,9 @@ def generate_blog(
             }
         )
 
+        if is_job_deleted(job_id):
+            return
+
         plan = out["plan"]
         result = {
             "title": plan.blog_title,
@@ -824,8 +845,13 @@ def generate_blog(
 
         update_job(job_id, status="done", stage="done", progress=100, result=result)
 
+    except JobCancelledError:
+        logger.info("Blog generation halted because job %s was deleted.", job_id)
+        return
     except Exception as exc:
         scrubbed = scrub_exception_chain(exc, keys=keys_to_scrub)
         logger.error("Blog generation failed for job %s: %s", job_id, scrubbed)
         update_job(job_id, status="error", stage="error", error=scrubbed)
         raise RuntimeError(scrubbed) from None
+    finally:
+        register_user_task_end(tracked_user_id)

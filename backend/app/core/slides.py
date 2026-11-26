@@ -12,7 +12,14 @@ import tempfile
 from typing import Any, Dict, List, Optional, Tuple
 
 from .agent import retry_on_rate_limit
-from .jobs import get_job, get_slide_job, update_slide_job
+from .jobs import (
+    JobCancelledError,
+    get_job,
+    get_slide_job,
+    is_job_deleted,
+    register_user_task_end,
+    update_slide_job,
+)
 from .llm import (
     PROVIDER_REGISTRY,
     get_llm,
@@ -918,41 +925,101 @@ def sanitize_slide_deck(deck: SlideDeck) -> SlideDeck:
     return deck
 
 
+_LATEX_ESCAPE_MAP = {
+    "\\": r"\textbackslash{}",
+    "&": r"\&",
+    "%": r"\%",
+    "$": r"\$",
+    "#": r"\#",
+    "_": r"\_",
+    "{": r"\{",
+    "}": r"\}",
+    "~": r"\textasciitilde{}",
+    "^": r"\textasciicircum{}",
+    "≈": r"\ensuremath{\approx}",
+    "×": r"\ensuremath{\times}",
+    "→": r"\ensuremath{\rightarrow}",
+    "←": r"\ensuremath{\leftarrow}",
+    "≤": r"\ensuremath{\leq}",
+    "≥": r"\ensuremath{\geq}",
+    "±": r"\ensuremath{\pm}",
+    "µ": r"\ensuremath{\mu}",
+    "μ": r"\ensuremath{\mu}",
+    "–": "--",
+    "—": "---",
+    "≠": r"\ensuremath{\neq}",
+    "÷": r"\ensuremath{\div}",
+    "°": r"\ensuremath{^\circ}",
+    "…": r"\ldots{}",
+}
+_LATEX_ESCAPE_RE = re.compile("|".join(re.escape(k) for k in _LATEX_ESCAPE_MAP))
+
+_DANGEROUS_TEX_COMMAND_RE = re.compile(
+    r"\\(?:@?@?input|include(?:only)?|open(?:in|out)|read|write|immediate|special|catcode|"
+    r"[egx]?def|let|futurelet|csname|endcsname|expandafter|scantokens|lstinputlisting|"
+    r"verbatiminput|VerbatimInput|(?:sub)?import|usepackage|RequirePackage|documentclass|"
+    r"(?:re|provide)?newcommand|Declare\w*|At(?:Begin|End)\w*|shipout|every\w*|toks|"
+    r"output|errhelp|errmessage|(?:direct|late)?lua(?:exec|code)?|url|href|"
+    r"new(?:write|read)|pdf(?:filesize|ximage)|loop|repeat)\b",
+    re.IGNORECASE,
+)
+_SAFE_MATH_ENVS = frozenset({"aligned", "bmatrix", "pmatrix", "cases", "split", "matrix", "vmatrix", "gather"})
+_SAFE_CODE_LANG_RE = re.compile(r"^[A-Za-z0-9_+#.-]{1,32}$")
+
+
 def escape_latex(text: Optional[str]) -> str:
-    """Escape LaTeX special characters and map mathematical/dash glyphs to math mode."""
+    """Escape LaTeX special characters in a single pass and map math/dash glyphs."""
     if not text:
         return ""
     s = sanitize_text(text, is_code=False)
+    return _LATEX_ESCAPE_RE.sub(lambda m: _LATEX_ESCAPE_MAP[m.group(0)], s)
 
-    # 1. Escape special LaTeX control characters (order matters for backslash)
-    s = s.replace("\\", "\\textbackslash{}")
-    s = s.replace("&", "\\&")
-    s = s.replace("%", "\\%")
-    s = s.replace("$", "\\$")
-    s = s.replace("#", "\\#")
-    s = s.replace("_", "\\_")
-    s = s.replace("{", "\\{")
-    s = s.replace("}", "\\}")
-    s = s.replace("~", "\\textasciitilde{}")
-    s = s.replace("^", "\\textasciicircum{}")
 
-    # 2. Map mathematical and typographic characters to math mode / TeX commands
-    s = s.replace("≈", r"\ensuremath{\approx}")
-    s = s.replace("×", r"\ensuremath{\times}")
-    s = s.replace("→", r"\ensuremath{\rightarrow}")
-    s = s.replace("←", r"\ensuremath{\leftarrow}")
-    s = s.replace("≤", r"\ensuremath{\leq}")
-    s = s.replace("≥", r"\ensuremath{\geq}")
-    s = s.replace("±", r"\ensuremath{\pm}")
-    s = s.replace("µ", r"\ensuremath{\mu}")
-    s = s.replace("μ", r"\ensuremath{\mu}")
-    s = s.replace("–", "--")   # en-dash U+2013
-    s = s.replace("—", "---")  # em-dash U+2014
-    s = s.replace("≠", r"\ensuremath{\neq}")
-    s = s.replace("÷", r"\ensuremath{\div}")
-    s = s.replace("°", r"\ensuremath{^\circ}")
-    s = s.replace("…", r"\ldots{}")
-    return s
+def _has_balanced_braces(text: str) -> bool:
+    depth = 0
+    i = 0
+    while i < len(text):
+        ch = text[i]
+        if ch == "\\" and i + 1 < len(text):
+            i += 2
+            continue
+        if ch == "{":
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+            if depth < 0:
+                return False
+        i += 1
+    return depth == 0
+
+
+def sanitize_latex_math(eq: Optional[str]) -> str:
+    """Validate LLM math expressions against TeX primitives and environment breakouts."""
+    cleaned = sanitize_text(eq, is_code=False).strip()
+    if not cleaned:
+        return "E = mc^2"
+    if _DANGEROUS_TEX_COMMAND_RE.search(cleaned) or not _has_balanced_braces(cleaned):
+        return r"\text{" + escape_latex(cleaned) + "}"
+    for env in re.findall(r"\\(?:begin|end)\s*\{([^}]*)\}", cleaned):
+        if env.strip() not in _SAFE_MATH_ENVS:
+            return r"\text{" + escape_latex(cleaned) + "}"
+    return cleaned
+
+
+def sanitize_code_language(lang: Optional[str]) -> str:
+    """Allow only safe lstlisting language identifiers without option-delimiter chars."""
+    candidate = (lang or "").strip()
+    if candidate and _SAFE_CODE_LANG_RE.match(candidate):
+        return candidate
+    return "python"
+
+
+def sanitize_code_snippet(snippet: Optional[str]) -> str:
+    """Neutralize lstlisting environment breakouts inside code blocks."""
+    cleaned = sanitize_text(snippet, is_code=True)
+    if not cleaned:
+        return "# code sample"
+    return re.sub(r"\\end\s*\{\s*lstlisting\s*\}", "// end lstlisting", cleaned, flags=re.IGNORECASE)
 
 
 def render_beamer(deck: SlideDeck) -> str:
@@ -1079,7 +1146,8 @@ def render_beamer(deck: SlideDeck) -> str:
   rulecolor=\color{navyLight},
   breaklines=true,
   tabsize=2,
-  showstringspaces=false
+  showstringspaces=false,
+  escapeinside={}{}
 }
 
 \title{""" + title + r"""}
@@ -1168,7 +1236,7 @@ def render_beamer(deck: SlideDeck) -> str:
                 h = escape_latex(b.heading)
                 body = escape_latex(b.body)
                 tex.append(r"""    \begin{column}{0.48\textwidth}
-      \begin{tcolorbox}[navyblock,title=""" + h + r"""]
+      \begin{tcolorbox}[navyblock,title={""" + h + r"""}]
         """ + body + r"""
       \end{tcolorbox}
     \end{column}
@@ -1183,7 +1251,7 @@ def render_beamer(deck: SlideDeck) -> str:
 """)
             half = (len(blocks) + 1) // 2
             for b in blocks[:half]:
-                tex.append(r"""      \begin{tcolorbox}[navyblock,title=""" + escape_latex(b.heading) + r"""]
+                tex.append(r"""      \begin{tcolorbox}[navyblock,title={""" + escape_latex(b.heading) + r"""}]
         """ + escape_latex(b.body) + r"""
       \end{tcolorbox}
       \vspace{2pt}
@@ -1192,7 +1260,7 @@ def render_beamer(deck: SlideDeck) -> str:
     \begin{column}{0.48\textwidth}
 """)
             for b in blocks[half:]:
-                tex.append(r"""      \begin{tcolorbox}[navyblock,title=""" + escape_latex(b.heading) + r"""]
+                tex.append(r"""      \begin{tcolorbox}[navyblock,title={""" + escape_latex(b.heading) + r"""}]
         """ + escape_latex(b.body) + r"""
       \end{tcolorbox}
       \vspace{2pt}
@@ -1228,7 +1296,7 @@ def render_beamer(deck: SlideDeck) -> str:
                 tex.append("  \\end{itemize}")
 
         elif layout == "equation":
-            eq = slide.equation or "E = mc^2"
+            eq = sanitize_latex_math(slide.equation)
             tex.append(r"""  \begin{equation*}
     """ + eq + r"""
   \end{equation*}
@@ -1241,8 +1309,8 @@ def render_beamer(deck: SlideDeck) -> str:
                 tex.append("  \\end{itemize}")
 
         elif layout == "code":
-            snippet = slide.code.snippet if slide.code else "# code sample"
-            lang = slide.code.language if slide.code and slide.code.language else "python"
+            snippet = sanitize_code_snippet(slide.code.snippet if slide.code else None)
+            lang = sanitize_code_language(slide.code.language if slide.code else None)
             tex.append(r"""  \begin{lstlisting}[language=""" + lang + r"""]
 """ + snippet + r"""
 \end{lstlisting}
@@ -1293,9 +1361,38 @@ def find_latex_engine() -> Optional[str]:
 
 
 
+_SUBPROCESS_ENV_ALLOWLIST = (
+    "PATH",
+    "TECTONIC_CACHE_DIR",
+    "HOME",
+    "TMP",
+    "TEMP",
+    "TMPDIR",
+    "SystemRoot",
+    "WINDIR",
+    "LANG",
+    "LC_ALL",
+)
+
+
+def _build_safe_tex_env(tmpdir: str) -> Dict[str, str]:
+    """Build an allowlisted subprocess environment free of application secrets."""
+    safe_env: Dict[str, str] = {}
+    for var in _SUBPROCESS_ENV_ALLOWLIST:
+        val = os.environ.get(var)
+        if val:
+            safe_env[var] = val
+    safe_env.setdefault("TMP", tmpdir)
+    safe_env.setdefault("TEMP", tmpdir)
+    safe_env["openin_any"] = "p"
+    safe_env["openout_any"] = "p"
+    return safe_env
+
+
 def compile_beamer(tex_content: str, timeout: int = 90) -> Tuple[Optional[bytes], str]:
     """
     Compile Beamer LaTeX in a temp directory using an available engine.
+    Runs with a secret-free allowlisted environment and engine confinement flags.
     Returns (pdf_bytes, log_or_error_excerpt).
     """
     engine = find_latex_engine()
@@ -1312,19 +1409,21 @@ def compile_beamer(tex_content: str, timeout: int = 90) -> Tuple[Optional[bytes]
 
         eng_bin = shutil.which(engine) or engine
         if engine == "tectonic":
-            cmd = [eng_bin, "-p", "slides.tex"]
+            cmd = [eng_bin, "--untrusted", "-p", "slides.tex"]
         elif engine == "latexmk":
-            cmd = [eng_bin, "-xelatex", "-interaction=nonstopmode", "slides.tex"]
+            cmd = [eng_bin, "-xelatex", "-no-shell-escape", "-interaction=nonstopmode", "slides.tex"]
         elif engine == "xelatex":
-            cmd = [eng_bin, "-interaction=nonstopmode", "slides.tex"]
+            cmd = [eng_bin, "-no-shell-escape", "-interaction=nonstopmode", "slides.tex"]
         else:
-            cmd = [eng_bin, "-interaction=nonstopmode", "slides.tex"]
+            cmd = [eng_bin, "-no-shell-escape", "-interaction=nonstopmode", "slides.tex"]
 
+        safe_env = _build_safe_tex_env(tmpdir)
 
         try:
             res = subprocess.run(
                 cmd,
                 cwd=tmpdir,
+                env=safe_env,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 timeout=timeout,
@@ -1363,6 +1462,7 @@ def compile_with_repair(deck: SlideDeck, max_retries: int = 2) -> Tuple[Optional
     """
     warnings: List[str] = []
     current_deck = deck
+    downgraded_indices: set[int] = set()
 
     for attempt in range(max_retries + 1):
         tex = render_beamer(current_deck)
@@ -1385,9 +1485,9 @@ def compile_with_repair(deck: SlideDeck, max_retries: int = 2) -> Tuple[Optional
             # Find failing slide or equation
             repaired = False
             for s_idx, s in enumerate(current_deck.slides):
-                if s.equation and ("Undefined control sequence" in log_excerpt or "Missing $" in log_excerpt):
-                    # Local equation fix or downgrade
+                if s.equation and s_idx not in downgraded_indices and ("Undefined control sequence" in log_excerpt or "Missing $" in log_excerpt):
                     s.equation = escape_latex(s.equation)
+                    downgraded_indices.add(s_idx)
                     warnings.append(f"Slide {s_idx + 1} equation failed compile; downgraded to escaped plain text.")
                     repaired = True
                     break
@@ -1397,8 +1497,9 @@ def compile_with_repair(deck: SlideDeck, max_retries: int = 2) -> Tuple[Optional
         else:
             # Last resort
             for s_idx, s in enumerate(current_deck.slides):
-                if s.equation and not s.equation.startswith("\\text"):
+                if s.equation and s_idx not in downgraded_indices:
                     s.equation = escape_latex(s.equation)
+                    downgraded_indices.add(s_idx)
                     warnings.append(f"Slide {s_idx + 1} equation downgraded to plain text as last resort.")
             tex = render_beamer(current_deck)
             pdf_bytes, _ = compile_beamer(tex)
@@ -1784,6 +1885,7 @@ def generate_slides_for_blog(
     slide_count: int = 10,
     audience: Optional[str] = None,
     llm_selection: Optional[LLMSelection] = None,
+    tracked_user_id: Optional[str] = None,
 ) -> None:
     """
     Main background pipeline:
@@ -1801,52 +1903,43 @@ def generate_slides_for_blog(
     )
     keys_to_scrub = [raw_key] if raw_key else []
 
-    blog_job = get_job(job_id)
-    if not blog_job or not blog_job.result:
-        update_slide_job(
-            job_id,
-            status="error",
-            stage="planning",
-            error=f"Associated blog job '{job_id}' result not found.",
-        )
-        return
-
     try:
+        if is_job_deleted(job_id):
+            raise JobCancelledError(f"Job {job_id} was deleted.")
+
+        blog_job = get_job(job_id)
+        if not blog_job or not blog_job.result:
+            update_slide_job(
+                job_id,
+                status="error",
+                stage="planning",
+                error=f"Associated blog job '{job_id}' result not found.",
+            )
+            return
+
         blog_result = BlogResult(**blog_job.result)
-    except Exception as e:
+
         update_slide_job(
             job_id,
-            status="error",
+            status="running",
             stage="planning",
-            error=f"Failed to parse blog result: {e}",
+            progress=10,
+            title=blog_result.title,
         )
-        return
 
-    update_slide_job(
-        job_id,
-        status="running",
-        stage="planning",
-        progress=10,
-        title=blog_result.title,
-    )
+        warnings: List[str] = []
 
-    warnings: List[str] = []
+        # Resolve active LLM & planner input cap
+        provider = (llm_selection.provider or "groq").strip().lower() if llm_selection else "groq"
+        provider_cfg = PROVIDER_REGISTRY.get(provider, PROVIDER_REGISTRY["groq"])
+        token_cap = provider_cfg["profile"].get("planner_input_token_cap")
 
-    # Resolve active LLM & planner input cap
-    provider = (llm_selection.provider or "groq").strip().lower() if llm_selection else "groq"
-    provider_cfg = PROVIDER_REGISTRY.get(provider, PROVIDER_REGISTRY["groq"])
-    token_cap = provider_cfg["profile"].get("planner_input_token_cap")
-
-    try:
         active_llm = get_llm("slides", llm_selection)
-    except Exception as exc:
-        scrubbed = scrub_exception_chain(exc, keys=keys_to_scrub)
-        logger.error("Failed to initialize slides LLM: %s", scrubbed)
-        update_slide_job(job_id, status="error", stage="planning", error=scrubbed)
-        return
 
-    # 1. Plan deck
-    try:
+        if is_job_deleted(job_id):
+            raise JobCancelledError(f"Job {job_id} was deleted before slide planning.")
+
+        # 1. Plan deck
         deck = plan_slides_deck(
             blog_result,
             slide_count=slide_count,
@@ -1856,58 +1949,66 @@ def generate_slides_for_blog(
             keys_to_scrub=keys_to_scrub,
             provider=provider,
         )
-    except Exception as e:
-        scrubbed = scrub_exception_chain(e, keys=keys_to_scrub)
-        logger.error("Slide planning failed: %s", scrubbed)
+
+        if is_job_deleted(job_id):
+            raise JobCancelledError(f"Job {job_id} was deleted after slide planning.")
+
+        update_slide_job(job_id, progress=35, slide_count=len(deck.slides))
+
+        # 2. Lint & deterministic repair
+        deck, det_repairs = repair_slide_deck_deterministic(deck, requested_count=slide_count)
+        warnings.extend(det_repairs)
+
+        issues = lint_slide_deck(deck, requested_count=slide_count)
+        if issues:
+            warnings.extend(issues)
+
+        # Sanitize all string fields across SlideDeck before rendering
+        deck = sanitize_slide_deck(deck)
+
+        update_slide_job(job_id, stage="writing_latex", progress=55, warnings=warnings)
+
+        # 3. PPTX Rendering
+        pptx_bytes: Optional[bytes] = None
+        try:
+            pptx_bytes = render_pptx(deck)
+        except Exception as e:
+            warnings.append(f"PPTX render warning: {str(e)}")
+            logger.warning("PPTX render error: %s", e)
+
+        if is_job_deleted(job_id):
+            raise JobCancelledError(f"Job {job_id} was deleted before compilation.")
+
+        update_slide_job(job_id, stage="compiling", progress=75, warnings=warnings)
+
+        # 4. Beamer Compile with Repair Loop
+        pdf_bytes, tex_content, compile_warnings = compile_with_repair(deck, max_retries=2)
+        warnings.extend(compile_warnings)
+
+        if is_job_deleted(job_id):
+            raise JobCancelledError(f"Job {job_id} was deleted before finalization.")
+
+        # 5. Finalize Job
         update_slide_job(
             job_id,
-            status="error",
-            stage="planning",
-            error=scrubbed,
+            status="done",
+            stage="done",
+            progress=100,
+            slide_count=len(deck.slides),
+            warnings=warnings,
+            pdf_bytes=pdf_bytes,
+            pptx_bytes=pptx_bytes,
+            tex_content=tex_content,
+            title=deck.title,
+            deck=deck.model_dump(),
         )
+        logger.info("Slide job %s completed successfully with %d slides", job_id, len(deck.slides))
+    except JobCancelledError:
+        logger.info("Slide generation halted because job %s was deleted.", job_id)
         return
-
-    update_slide_job(job_id, progress=35, slide_count=len(deck.slides))
-
-    # 2. Lint & deterministic repair
-    deck, det_repairs = repair_slide_deck_deterministic(deck, requested_count=slide_count)
-    warnings.extend(det_repairs)
-
-    issues = lint_slide_deck(deck, requested_count=slide_count)
-    if issues:
-        warnings.extend(issues)
-
-    # Sanitize all string fields across SlideDeck before rendering
-    deck = sanitize_slide_deck(deck)
-
-    update_slide_job(job_id, stage="writing_latex", progress=55, warnings=warnings)
-
-    # 3. PPTX Rendering
-    pptx_bytes: Optional[bytes] = None
-    try:
-        pptx_bytes = render_pptx(deck)
-    except Exception as e:
-        warnings.append(f"PPTX render warning: {str(e)}")
-        logger.warning("PPTX render error: %s", e)
-
-    update_slide_job(job_id, stage="compiling", progress=75, warnings=warnings)
-
-    # 4. Beamer Compile with Repair Loop
-    pdf_bytes, tex_content, compile_warnings = compile_with_repair(deck, max_retries=2)
-    warnings.extend(compile_warnings)
-
-    # 5. Finalize Job
-    update_slide_job(
-        job_id,
-        status="done",
-        stage="done",
-        progress=100,
-        slide_count=len(deck.slides),
-        warnings=warnings,
-        pdf_bytes=pdf_bytes,
-        pptx_bytes=pptx_bytes,
-        tex_content=tex_content,
-        title=deck.title,
-        deck=deck.model_dump(),
-    )
-    logger.info("Slide job %s completed successfully with %d slides", job_id, len(deck.slides))
+    except Exception as exc:
+        scrubbed = scrub_exception_chain(exc, keys=keys_to_scrub)
+        logger.error("Slide generation failed for job %s: %s", job_id, scrubbed)
+        update_slide_job(job_id, status="error", stage="error", error=scrubbed)
+    finally:
+        register_user_task_end(tracked_user_id)

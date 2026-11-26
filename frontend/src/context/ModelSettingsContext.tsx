@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode, useCallback } from 'react'
 import { useAuth } from './AuthContext'
 import { getUserSavedKeys, saveUserKey as apiSaveUserKey, deleteUserKey as apiDeleteUserKey, type UserKeyItem } from '@/api/client'
+import { getStoredGuestKey, removeStoredGuestKey, setStoredGuestKey } from '@/lib/guestKeys'
 
 export interface ProviderConfig {
   id: string
@@ -155,22 +156,24 @@ export function ModelSettingsProvider({ children }: { children: ReactNode }) {
     }
   }, [user, refreshSavedKeys])
 
-  // Guest keys in sessionStorage ONLY
+  // Guest keys in sessionStorage ONLY (inactive whenever authenticated)
   const getGuestKey = (prov: string): string | null => {
-    return sessionStorage.getItem(`sage_guest_key_${prov}`)
+    if (user) return null
+    return getStoredGuestKey(prov)
   }
 
   const setGuestKey = (prov: string, key: string) => {
-    sessionStorage.setItem(`sage_guest_key_${prov}`, key)
+    setStoredGuestKey(prov, key)
   }
 
   const removeGuestKey = (prov: string) => {
-    sessionStorage.removeItem(`sage_guest_key_${prov}`)
+    removeStoredGuestKey(prov)
   }
 
   // Save key (signed-in user saves to backend; guest saves to sessionStorage)
   const saveKey = async (prov: string, apiKey: string) => {
     if (user) {
+      removeStoredGuestKey(prov)
       try {
         const res = await apiSaveUserKey(prov, apiKey)
         await refreshSavedKeys()
@@ -187,6 +190,7 @@ export function ModelSettingsProvider({ children }: { children: ReactNode }) {
 
   const removeKey = async (prov: string) => {
     if (user) {
+      removeStoredGuestKey(prov)
       try {
         await apiDeleteUserKey(prov)
         await refreshSavedKeys()
@@ -216,9 +220,8 @@ export function ModelSettingsProvider({ children }: { children: ReactNode }) {
   // Key check
   const hasKeyForProvider = (prov: string): boolean => {
     if (prov === 'groq') return true
-    if (user && savedKeys.some((k) => k.provider === prov)) return true
-    if (Boolean(getGuestKey(prov))) return true
-    return false
+    if (user) return savedKeys.some((k) => k.provider === prov)
+    return Boolean(getGuestKey(prov))
   }
 
   // Header display label

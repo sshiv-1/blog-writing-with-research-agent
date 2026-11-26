@@ -71,7 +71,7 @@ def verify_supabase_jwt(token: str) -> AuthUser:
         )
 
     alg = header.get("alg")
-    if not alg or alg.lower() == "none":
+    if not isinstance(alg, str) or not alg or alg.lower() == "none":
         raise HTTPException(
             status_code=401,
             detail="Token algorithm 'none' is rejected.",

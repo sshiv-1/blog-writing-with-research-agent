@@ -1,6 +1,7 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
 import type { User, Session } from '@supabase/supabase-js'
 import { supabase, isSupabaseConfigured } from '@/lib/supabase'
+import { clearAllGuestKeys } from '@/lib/guestKeys'
 
 interface AuthContextType {
   user: User | null
@@ -28,6 +29,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [session, setSession] = useState<Session | null>(null)
   const [isLoading, setIsLoading] = useState<boolean>(isSupabaseConfigured)
+  const lastUserIdRef = useRef<string | null>(null)
 
   useEffect(() => {
     if (!supabase) {
@@ -36,6 +38,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     supabase.auth.getSession().then(({ data: { session } }) => {
+      lastUserIdRef.current = session?.user?.id ?? null
       setSession(session)
       setUser(session?.user ?? null)
       setIsLoading(false)
@@ -43,7 +46,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setIsLoading(false)
     })
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      const nextUserId = session?.user?.id ?? null
+      if (event === 'SIGNED_IN' || event === 'SIGNED_OUT' || lastUserIdRef.current !== nextUserId) {
+        clearAllGuestKeys()
+      }
+      lastUserIdRef.current = nextUserId
       setSession(session)
       setUser(session?.user ?? null)
     })
@@ -87,6 +95,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const signOut = async () => {
+    clearAllGuestKeys()
+    lastUserIdRef.current = null
     if (!supabase) return
     await supabase.auth.signOut()
     setSession(null)

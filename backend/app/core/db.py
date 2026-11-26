@@ -121,11 +121,17 @@ def check_and_mark_stale_job(row: dict, table_name: str = "jobs") -> dict:
 def _safe_update_stale_db(client, table_name: str, job_id: str, error: str) -> None:
     try:
         now_iso = datetime.now(timezone.utc).isoformat()
-        client.table(table_name).update({
-            "status": "error",
-            "error": error,
-            "updated_at": now_iso,
-        }).eq("id", job_id).execute()
+        (
+            client.table(table_name)
+            .update({
+                "status": "error",
+                "error": error,
+                "updated_at": now_iso,
+            })
+            .eq("id", job_id)
+            .in_("status", ["queued", "running"])
+            .execute()
+        )
     except Exception as exc:
         logger.warning("Failed to update stale job %s in DB: %s", job_id, scrub_exception_chain(exc))
 
@@ -226,44 +232,73 @@ def list_user_jobs_db(user_id: str, limit: int = 20, offset: int = 0) -> Tuple[L
 
 
 def count_user_active_jobs_db(user_id: str) -> int:
-    """Count active (queued or running) jobs for a user across jobs and slide_jobs."""
+    """Count active (non-stale queued or running) jobs for a user across jobs and slide_jobs.
+    Fails closed (raises RuntimeError) if Supabase is configured and unreachable.
+    """
+    if not is_configured():
+        return 0
     client = get_supabase_client()
-    if client is None or not user_id:
+    if client is None:
+        raise RuntimeError("Supabase client unavailable for active quota verification.")
+    if not user_id:
         return 0
 
     try:
-        resp = (
+        stale_cutoff = (datetime.now(timezone.utc) - timedelta(minutes=15)).isoformat()
+        jobs_resp = (
             client.table("jobs")
             .select("id", count="exact")
             .eq("user_id", user_id)
             .in_("status", ["queued", "running"])
+            .gte("updated_at", stale_cutoff)
             .execute()
         )
-        return resp.count if resp.count is not None else 0
+        slides_resp = (
+            client.table("slide_jobs")
+            .select("id", count="exact")
+            .eq("user_id", user_id)
+            .in_("status", ["queued", "running"])
+            .gte("updated_at", stale_cutoff)
+            .execute()
+        )
+        return (jobs_resp.count or 0) + (slides_resp.count or 0)
     except Exception as exc:
         logger.warning("Supabase count_user_active_jobs failed: %s", scrub_exception_chain(exc))
-        return 0
+        raise RuntimeError("Failed to verify active user job quota.") from None
 
 
 def count_user_daily_jobs_db(user_id: str) -> int:
-    """Count jobs created by user in the last 24 hours."""
+    """Count jobs and slide jobs created by user in the last 24 hours.
+    Fails closed (raises RuntimeError) if Supabase is configured and unreachable.
+    """
+    if not is_configured():
+        return 0
     client = get_supabase_client()
-    if client is None or not user_id:
+    if client is None:
+        raise RuntimeError("Supabase client unavailable for daily quota verification.")
+    if not user_id:
         return 0
 
     try:
         cutoff = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
-        resp = (
+        jobs_resp = (
             client.table("jobs")
             .select("id", count="exact")
             .eq("user_id", user_id)
             .gte("created_at", cutoff)
             .execute()
         )
-        return resp.count if resp.count is not None else 0
+        slides_resp = (
+            client.table("slide_jobs")
+            .select("id", count="exact")
+            .eq("user_id", user_id)
+            .gte("created_at", cutoff)
+            .execute()
+        )
+        return (jobs_resp.count or 0) + (slides_resp.count or 0)
     except Exception as exc:
         logger.warning("Supabase count_user_daily_jobs failed: %s", scrub_exception_chain(exc))
-        return 0
+        raise RuntimeError("Failed to verify daily user job quota.") from None
 
 
 def delete_job_db(job_id: str, user_id: Optional[str]) -> bool:
@@ -278,14 +313,24 @@ def delete_job_db(job_id: str, user_id: Optional[str]) -> bool:
             query = query.eq("user_id", user_id)
         query.execute()
 
-        # Clean artifacts from private storage bucket
+        # Clean artifacts from private storage bucket (paginated)
         if user_id:
             try:
                 prefix = f"{user_id}/{job_id}"
-                files = client.storage.from_("artifacts").list(prefix)
-                if files:
-                    file_paths = [f"{prefix}/{f['name']}" for f in files]
-                    client.storage.from_("artifacts").remove(file_paths)
+                offset = 0
+                page_size = 100
+                while True:
+                    files = client.storage.from_("artifacts").list(
+                        prefix, {"limit": page_size, "offset": offset}
+                    )
+                    if not files:
+                        break
+                    file_paths = [f"{prefix}/{f['name']}" for f in files if f.get("name")]
+                    if file_paths:
+                        client.storage.from_("artifacts").remove(file_paths)
+                    if len(files) < page_size:
+                        break
+                    offset += page_size
             except Exception as store_exc:
                 logger.warning("Failed to clean up storage artifacts for %s: %s", job_id, scrub_exception_chain(store_exc))
         return True

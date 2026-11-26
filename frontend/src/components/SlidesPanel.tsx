@@ -107,7 +107,7 @@ export default function SlidesPanel({
 
     let byokHeaders: Record<string, string> | undefined
     if (effectiveSlidesProvider === 'groq') {
-      const guestGroqKey = getGuestKey('groq')
+      const guestGroqKey = !user ? getGuestKey('groq') : null
       const savedGroqKey = user && savedKeys.some((k) => k.provider === 'groq')
       if (guestGroqKey || savedGroqKey) {
         byokHeaders = {
@@ -123,7 +123,7 @@ export default function SlidesPanel({
         'X-LLM-Slides-Provider': effectiveSlidesProvider,
         'X-LLM-Slides-Model': effectiveSlidesModel,
       }
-      const guestKey = getGuestKey(effectiveSlidesProvider)
+      const guestKey = !user ? getGuestKey(effectiveSlidesProvider) : null
       if (guestKey) {
         byokHeaders['X-LLM-Key'] = guestKey
       }

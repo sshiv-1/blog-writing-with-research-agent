@@ -44,7 +44,7 @@ class Plan(BaseModel):
         "explainer", "tutorial", "news_roundup", "comparison", "system_design"
     ] = "explainer"
     constraints: Optional[List[str]] = Field(default_factory=list)
-    tasks: List[Task]
+    tasks: List[Task] = Field(..., max_length=15)
 
     @field_validator("constraints", mode="before")
     def _normalize_constraints(cls, v):
@@ -115,11 +115,11 @@ class State(TypedDict):
 
 
 class GenerateRequest(BaseModel):
-    topic: str
-    tone: str = "professional"
+    topic: str = Field(..., min_length=1, max_length=2000)
+    tone: str = Field("professional", max_length=100)
     length: Literal["short", "medium", "long"] = "medium"
     style: Literal["blog", "tutorial", "explainer", "news_roundup", "comparison"] = "blog"
-    audience: str = "developers"
+    audience: str = Field("developers", max_length=200)
     use_web: bool = True
 
 
@@ -474,7 +474,7 @@ class SlideDeck(TolerantBaseModel):
 
 class GenerateSlidesRequest(BaseModel):
     slide_count: int = Field(default=10, ge=8, le=16)
-    audience: Optional[str] = None
+    audience: Optional[str] = Field(default=None, max_length=200)
 
 
 class SlideJobStatusResponse(BaseModel):
